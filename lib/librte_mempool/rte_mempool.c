@@ -153,22 +153,52 @@ mempool_add_elem(struct rte_mempool *mp, void *obj, phys_addr_t physaddr)
 
 /* call obj_cb() for each mempool element */
 uint32_t
-rte_mempool_obj_iter(struct rte_mempool *mp,
-	rte_mempool_obj_cb_t *obj_cb, void *obj_cb_arg)
+rte_mempool_obj_iter_ex(struct rte_mempool *mp,
+        rte_mempool_obj_cb_rd_t *obj_cb, void *obj_cb_arg)
 {
 	struct rte_mempool_objhdr *hdr;
 	void *obj;
 	unsigned n = 0;
+    FILE *fp_rd;
+
+    fp_rd = fopen("/dev/urandom", "r");
+    if ( NULL == fp_rd ) {
+        printf("%s: fp_random is null\n", __func__);
+    }
+
+	printf("%s: start format packages\n", __func__);
 
 	STAILQ_FOREACH(hdr, &mp->elt_list, next) {
 		obj = (char *)hdr + sizeof(*hdr);
-		obj_cb(mp, obj_cb_arg, obj, n);
+		obj_cb(mp, obj_cb_arg, obj, n, fp_rd);
 		n++;
 	}
 
 	printf("%s: m is null, ring_cnt %d\n", __func__, n);
 
+    if ( NULL != fp_rd ) {
+        fclose(fp_rd);
+    }
+
 	return n;
+}
+
+/* call obj_cb() for each mempool element */
+uint32_t
+rte_mempool_obj_iter(struct rte_mempool *mp,
+        rte_mempool_obj_cb_t *obj_cb, void *obj_cb_arg)
+{
+    struct rte_mempool_objhdr *hdr;
+    void *obj;
+    unsigned n = 0;
+
+    STAILQ_FOREACH(hdr, &mp->elt_list, next) {
+        obj = (char *)hdr + sizeof(*hdr);
+        obj_cb(mp, obj_cb_arg, obj, n);
+        n++;
+    }
+
+    return n;
 }
 
 /* call mem_cb() for each mempool memory chunk */

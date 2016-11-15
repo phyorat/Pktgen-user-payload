@@ -565,6 +565,8 @@ int rte_mempool_register_ops(const struct rte_mempool_ops *ops);
  */
 typedef void (rte_mempool_obj_cb_t)(struct rte_mempool *mp,
 		void *opaque, void *obj, unsigned obj_idx);
+typedef void (rte_mempool_obj_cb_rd_t)(struct rte_mempool *mp,
+        void *opaque, void *obj, unsigned obj_idx, FILE *fp_rd);
 typedef rte_mempool_obj_cb_t rte_mempool_obj_ctor_t; /* compat */
 
 /**
@@ -926,7 +928,8 @@ int rte_mempool_populate_anon(struct rte_mempool *mp);
  */
 uint32_t rte_mempool_obj_iter(struct rte_mempool *mp,
 	rte_mempool_obj_cb_t *obj_cb, void *obj_cb_arg);
-
+uint32_t rte_mempool_obj_iter_ex(struct rte_mempool *mp,
+        rte_mempool_obj_cb_rd_t *obj_cb, void *obj_cb_arg);
 /**
  * Call a function for each mempool memory chunk
  *

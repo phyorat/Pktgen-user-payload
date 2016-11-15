@@ -1049,6 +1049,94 @@ pktgen_send_special(port_info_t *info, uint32_t flags)
 	pktgen_clr_port_flags(info, SEND_ARP_PING_REQUESTS);
 }
 
+int base64_STATIC(const u_char * xdata, int length, char *output, int buf_len)
+{
+    int count, cols, bits, c, char_count;
+    unsigned char alpha[] =
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"; /* 64 bytes */
+    char * ost = output;
+
+    char_count = 0;
+    bits = 0;
+    cols = 0;
+
+    if (((length * 1.5) + 4) > buf_len) {
+        return 1;
+    }
+
+    memset(output, '\0', buf_len);
+
+    for (count = 0; count < length; count++) {
+        c = xdata[count];
+        if (c > 255) {
+            printf(
+                    "plugbase.c->base64(): encountered char > 255 (decimal %d)\n "
+                    "If you see this error message a char is more than one byte on your machine\n "
+                    "This means your base64 results can not be trusted",
+                    c);
+        }
+
+        bits += c;
+        char_count++;
+
+        if (char_count == 3) {
+            *output++ = alpha[bits >> 18];
+            *output++ = alpha[(bits >> 12) & 0x3f];
+            *output++ = alpha[(bits >> 6) & 0x3f];
+            *output++ = alpha[bits & 0x3f];
+            cols += 4;
+            if (cols == 64) {
+                *output++ = '\n';
+                cols = 0;
+            }
+            bits = 0;
+            char_count = 0;
+        }
+        else {
+            bits <<= 8;
+        }
+    }
+
+    if (char_count != 0) {
+        bits <<= 16 - (8 * char_count);
+        *output++ = alpha[bits >> 18];
+        *output++ = alpha[(bits >> 12) & 0x3f];
+        if (char_count == 1) {
+            *output++ = '=';
+            *output++ = '=';
+        }
+        else {
+            *output++ = alpha[(bits >> 6) & 0x3f];
+            *output++ = '=';
+        }
+    }
+    *output++ = '\n';
+
+    return (output-ost);
+}
+
+int pktgen_getrandom_string64(FILE *fp, char *buf, uint8_t buf_len)
+{
+    size_t nr;
+
+    u_char src_rd[64];
+
+    //fp = fopen("/dev/urandom", "r");
+    if ( NULL == fp )
+        return -1;
+
+    //fseek(fp, 0, SEEK_SET);
+    nr = fread(src_rd, 1, sizeof(src_rd), fp);
+    if ( nr < sizeof(src_rd) ){
+        printf("%s: insufficient random data\n", __func__);
+        return -1;
+    }
+
+    //fclose(fp);
+
+    return base64_STATIC(src_rd, sizeof(src_rd), buf, buf_len);
+}
+
 typedef struct {
 	port_info_t *info;
 	uint16_t qid;
@@ -1056,13 +1144,15 @@ typedef struct {
 
 static __inline__ void
 pktgen_setup_cb(struct rte_mempool *mp,
-        void *opaque, void *obj, unsigned obj_idx __rte_unused)
+        void *opaque, void *obj, unsigned obj_idx __rte_unused, FILE *fp_rd)
 {
     pkt_data_t *data = (pkt_data_t *)opaque;
 	struct rte_mbuf *m = (struct rte_mbuf *)obj;
     port_info_t *info;
 	pkt_seq_t *pkt;
     uint16_t qid;
+    int rand_strlen = 0;
+    char rand_str[128];
 
     info = data->info;
     qid = data->qid;
@@ -1097,8 +1187,13 @@ pktgen_setup_cb(struct rte_mempool *mp,
 
         rte_memcpy((uint8_t *)m->buf_addr + m->data_off,
                    (uint8_t *)&pkt->hdr, pkt->tlen);//MAX_PKT_SIZE);
-        rte_memcpy((uint8_t *)m->buf_addr + m->data_off + pkt->tlen,
-                   "123456789012345678901234567890", 30);
+
+        //Generate random string as payload data
+        rand_strlen = pktgen_getrandom_string64(fp_rd, rand_str, sizeof(rand_str));
+        if ( rand_strlen > 0 ) {
+            rte_memcpy((uint8_t *)m->buf_addr + m->data_off + pkt->tlen,
+                    rand_str, rand_strlen);
+        }
 
         m->pkt_len  = pkt->pktSize;
         m->data_len = pkt->pktSize;
@@ -1173,7 +1268,7 @@ pktgen_setup_packets(port_info_t *info, struct rte_mempool *mp, uint16_t qid)
     printf("%s in, c_session %d\n", __func__, c_session);
 
 #if RTE_VERSION >= RTE_VERSION_NUM(16, 7, 0, 0)
-    rte_mempool_obj_iter(mp, pktgen_setup_cb, &pkt_data);
+    rte_mempool_obj_iter_ex(mp, pktgen_setup_cb, &pkt_data);
 #else
     {
     struct rte_mbuf *m, *mm;
