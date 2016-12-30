@@ -1175,6 +1175,13 @@ pktgen_setup_cb(struct rte_mempool *mp,
         rte_memcpy((uint8_t *)m->buf_addr + m->data_off,
                    (uint8_t *)&pkt->hdr, pkt->tlen);//MAX_PKT_SIZE);
 
+        //Generate random string as payload data
+        /*rand_strlen = pktgen_getrandom_string64(fp_rd, rand_str, sizeof(rand_str));
+        if ( rand_strlen > 0 ) {
+            rte_memcpy((uint8_t *)m->buf_addr + m->data_off + pkt->tlen,
+	                    rand_str, rand_strlen);
+        }*/
+
         m->pkt_len  = pkt->pktSize;
         m->data_len = pkt->pktSize;
     } else if (mp == info->q[qid].seq_mp) {

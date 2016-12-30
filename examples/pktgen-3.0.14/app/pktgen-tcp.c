@@ -115,7 +115,7 @@ pktgen_tcp_hdr_ctor(pkt_seq_t *pkt, tcpip_t *tip, int type __rte_unused)
 
     switch (c_session) {
     case 0:
-        tip->tcp.flags = ACK_FLAG;
+        tip->tcp.flags = SYN_FLAG;
 /*
         t_port = tip->tcp.sport;
         tip->tcp.sport = tip->tcp.dport;
@@ -129,7 +129,7 @@ pktgen_tcp_hdr_ctor(pkt_seq_t *pkt, tcpip_t *tip, int type __rte_unused)
         tip->tcp.flags = SYN_FLAG|ACK_FLAG;
         break;
     case 2:
-        tip->tcp.flags = SYN_FLAG;
+        tip->tcp.flags = ACK_FLAG;
         break;
     default:
         break;

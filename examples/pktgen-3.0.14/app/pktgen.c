@@ -1151,9 +1151,11 @@ pktgen_setup_cb(struct rte_mempool *mp,
     port_info_t *info;
 	pkt_seq_t *pkt;
     uint16_t qid;
+#define LOAD_RAMDOM
+#ifdef LOAD_RAMDOM
     int rand_strlen = 0;
-    char rand_str[128];
-
+    char rand_str[128], *prand;
+#endif
     info = data->info;
     qid = data->qid;
 
@@ -1178,6 +1180,19 @@ pktgen_setup_cb(struct rte_mempool *mp,
     } else if (mp == info->q[qid].range_mp) {
         if ( 0 == c_session ) {
             pktgen_range_ctor(&info->range, pkt);
+            if ( NULL != fp_rd ) {
+    #ifdef LOAD_RAMDOM
+                //Generate random string as payload data
+                rand_strlen = pktgen_getrandom_string64(fp_rd, rand_str, sizeof(rand_str));
+                if ( rand_strlen > 0 ) {
+                    //rte_memcpy((uint8_t *)m->buf_addr + m->data_off + pkt->tlen,
+                     //       rand_str, rand_strlen);
+                    prand = rand_str;
+                    //pkt->ip_dst_addr.addr.ipv4.s_addr = *((uint32_t *)prand);
+                    pkt->ip_src_addr.addr.ipv4.s_addr = *((uint32_t *)prand);
+                }
+    #endif
+            }
         }
 
         if (c_session++ >= 2)
@@ -1187,13 +1202,6 @@ pktgen_setup_cb(struct rte_mempool *mp,
 
         rte_memcpy((uint8_t *)m->buf_addr + m->data_off,
                    (uint8_t *)&pkt->hdr, pkt->tlen);//MAX_PKT_SIZE);
-
-        //Generate random string as payload data
-        rand_strlen = pktgen_getrandom_string64(fp_rd, rand_str, sizeof(rand_str));
-        if ( rand_strlen > 0 ) {
-            rte_memcpy((uint8_t *)m->buf_addr + m->data_off + pkt->tlen,
-                    rand_str, rand_strlen);
-        }
 
         m->pkt_len  = pkt->pktSize;
         m->data_len = pkt->pktSize;
