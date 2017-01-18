@@ -1114,6 +1114,209 @@ typedef struct {
 	uint16_t qid;
 } pkt_data_t;
 
+typedef enum
+{
+    IP = 0,
+    HOPOPTS = 0,
+    ICMPV4 = 1,
+    IGMP = 2,
+    IPIP = 4,
+    TCP = 6,
+    UDP = 17,
+    IPV6 = 41,
+    ROUTING = 43,
+    FRAGMENT = 44,
+    GRE = 47,
+    ESP = 50,
+    AUTH = 51, // RFC 4302
+    SWIPE = 53,
+    MOBILITY = 55,
+    ICMPV6 = 58,
+    NONEXT = 59,
+    DSTOPTS = 60,
+    SUN_ND = 77,
+    PGM = 113,
+
+    /* Last updated 3/31/2016.
+       Source: http://www.iana.org/assignments/protocol-numbers/protocol-numbers.xml */
+    MIN_UNASSIGNED_IP_PROTO = 143,
+
+    RESERVED = 255,       // == 0xFF
+    PORT_SCAN = 255,
+    PROTO_NOT_SET = 255,  // Indicates protocol has not been set.
+}IpProtocol;
+
+typedef struct __Pseudoheader
+{
+    uint32_t sip;
+    uint32_t dip;
+    uint8_t zero;
+    uint8_t protocol;
+    uint16_t len;
+}Pseudoheader;
+
+typedef struct __PsuedoheaderUnion
+{
+    union
+    {
+        Pseudoheader ph4;
+        uint16_t ph4_arr[12];
+    };
+}PsuedoheaderUnion;
+
+static void add_ipv4_pseudoheader(Pseudoheader* ph4, uint32_t *cksum)
+{
+    /*
+     * This mess is necessary to make static analyzers happy.
+     * Otherwise they assume we are reading garbage values
+     */
+    PsuedoheaderUnion* ph4_u = (PsuedoheaderUnion*)ph4;
+    //= reinterpret_cast        <const PsuedoheaderUnion*>(ph4);
+    uint16_t* h = ph4_u->ph4_arr;
+
+    /* ipv4 pseudo header must have 12 bytes */
+    *cksum += h[0];
+    *cksum += h[1];
+    *cksum += h[2];
+    *cksum += h[3];
+    *cksum += h[4];
+    *cksum += h[5];
+}
+
+static void add_tcp_header(uint16_t **d,
+    size_t *len,
+    uint32_t *cksum)
+{
+    /* TCP hdr must have 20 hdr bytes */
+    *cksum += (*d)[0];
+    *cksum += (*d)[1];
+    *cksum += (*d)[2];
+    *cksum += (*d)[3];
+    *cksum += (*d)[4];
+    *cksum += (*d)[5];
+    *cksum += (*d)[6];
+    *cksum += (*d)[7];
+    *cksum += (*d)[8];
+    *cksum += (*d)[9];
+    *d += 10;
+    *len -= 20;
+}
+
+static void add_udp_header(uint16_t **d,
+    size_t *len,
+    uint32_t *cksum)
+{
+    /* UDP must have 8 hdr bytes */
+    *cksum += (*d)[0];
+    *cksum += (*d)[1];
+    *cksum += (*d)[2];
+    *cksum += (*d)[3];
+    *len -= 8;
+    *d += 4;
+}
+
+static uint16_t cksum_add(uint16_t* buf, size_t len, uint32_t cksum)
+{
+    uint16_t* sp = buf;
+    size_t n, sn;
+
+    if (len > 1 )
+    {
+        sn = ((len / 2) & 0xF);  // == len/2 % 16
+        n = (((len / 2) + 15) / 16);   // ceiling of (len / 2) / 16
+
+        switch (sn)
+        {
+        case 0:
+            sn = 16;
+            cksum += sp[15];
+        case 15:
+            cksum += sp[14];
+        case 14:
+            cksum += sp[13];
+        case 13:
+            cksum += sp[12];
+        case 12:
+            cksum += sp[11];
+        case 11:
+            cksum += sp[10];
+        case 10:
+            cksum += sp[9];
+        case 9:
+            cksum += sp[8];
+        case 8:
+            cksum  += sp[7];
+        case 7:
+            cksum += sp[6];
+        case 6:
+            cksum += sp[5];
+        case 5:
+            cksum += sp[4];
+        case 4:
+            cksum += sp[3];
+        case 3:
+            cksum += sp[2];
+        case 2:
+            cksum += sp[1];
+        case 1:
+            cksum += sp[0];
+        }
+        sp += sn;
+
+        /* XXX - unroll loop using Duff's device. */
+        while (--n > 0)
+        {
+            cksum += sp[0];
+            cksum += sp[1];
+            cksum += sp[2];
+            cksum += sp[3];
+            cksum += sp[4];
+            cksum += sp[5];
+            cksum += sp[6];
+            cksum += sp[7];
+            cksum += sp[8];
+            cksum += sp[9];
+            cksum += sp[10];
+            cksum += sp[11];
+            cksum += sp[12];
+            cksum += sp[13];
+            cksum += sp[14];
+            cksum += sp[15];
+            sp += 16;
+        }
+    }
+
+    if (len & 1)
+        cksum += (*(unsigned char*)sp);
+
+    cksum  = (cksum >> 16) + (cksum & 0x0000ffff);
+    cksum += (cksum >> 16);
+
+    return (uint16_t)(~cksum);
+}
+
+static uint16_t tcp_cksum(uint16_t* h,
+    size_t len,
+    Pseudoheader* ph)
+{
+    uint32_t cksum = 0;
+
+    add_ipv4_pseudoheader(ph, &cksum);
+    add_tcp_header(&h, &len, &cksum);
+    return cksum_add(h, len, cksum);
+}
+
+static uint16_t udp_cksum(uint16_t* buf,
+    size_t len,
+    Pseudoheader* ph)
+{
+    uint32_t cksum = 0;
+
+    add_ipv4_pseudoheader(ph, &cksum);
+    add_udp_header(&buf, &len, &cksum);
+    return cksum_add(buf, len, cksum);
+}
+
 static __inline__ void
 pktgen_setup_cb(struct rte_mempool *mp,
         void *opaque, void *obj, unsigned obj_idx __rte_unused, FILE *fp_rd)
@@ -1124,9 +1327,11 @@ pktgen_setup_cb(struct rte_mempool *mp,
 	pkt_seq_t *pkt;
     uint16_t qid;
 #define LOAD_RAMDOM
+#define LOAD_CSUM
 #ifdef LOAD_RAMDOM
     int rand_strlen = 0;
     char rand_str[128], *prand;
+    Pseudoheader ph;
 #endif
     info = data->info;
     qid = data->qid;
@@ -1150,6 +1355,12 @@ pktgen_setup_cb(struct rte_mempool *mp,
         m->pkt_len  = pkt->pktSize;
         m->data_len = pkt->pktSize;
     } else if (mp == info->q[qid].range_mp) {
+#ifdef LOAD_CSUM
+        struct ether_hdr  *eth = (struct ether_hdr *)&pkt->hdr.eth;
+        char *ether_hdr = pktgen_ether_hdr_ctor(info, pkt, eth);
+        tcpip_t   *tip = (tcpip_t *)ether_hdr;
+		udpip_t   *udp = (udpip_t *)ether_hdr;
+#endif
         if ( 0 == c_session ) {
             pktgen_range_ctor(&info->range, pkt);
             if ( NULL != fp_rd ) {
@@ -1167,13 +1378,52 @@ pktgen_setup_cb(struct rte_mempool *mp,
             }
         }
 
-        if (c_session++ >= 2)
+        if (c_session++ >= 2) {
             c_session = 0;
+            pkt->ipProto = PG_IPPROTO_UDP;
+        }
+        else {
+            pkt->ipProto = PG_IPPROTO_TCP;
+        }
 
+#ifdef LOAD_CSUM
+        //Format
+        if ( PG_IPPROTO_TCP == pkt->ipProto ) {
+            tip->tcp.cksum = 0;
+            pktgen_packet_ctor(info, RANGE_PKT, -1);
+        }
+        else {
+            pktgen_packet_ctor(info, RANGE_PKT, -1);
+        }
+
+        //Checksum calculation ---------------------------------------
+        ph.sip = htonl(pkt->ip_src_addr.addr.ipv4.s_addr);
+        ph.dip = htonl(pkt->ip_dst_addr.addr.ipv4.s_addr);
+        /* setup the pseudo header for checksum calculation */
+        ph.zero = 0;
+        //ph.protocol = ip4h->proto();
+        ph.len = htons((uint16_t)pkt->pktSize-14-20);
+
+        //Fill Checksum
+        if ( PG_IPPROTO_TCP == pkt->ipProto ) {
+            ph.protocol = TCP;
+            tip->tcp.cksum = 0;
+            tip->tcp.cksum = tcp_cksum((uint16_t*)(&(tip->tcp)), ntohs(ph.len), &ph);
+        }
+        else {
+            ph.protocol = UDP;
+			udp->udp.cksum = 0;
+			udp->udp.cksum = udp_cksum((uint16_t*)(&(udp->udp)), ntohs(ph.len), &ph);
+        }
+
+        //Checksum calculation End---------------------------------------
+#else
         pktgen_packet_ctor(info, RANGE_PKT, -1);
+#endif
 
+        //Put into m-buffer
         rte_memcpy((uint8_t *)m->buf_addr + m->data_off,
-                   (uint8_t *)&pkt->hdr, pkt->tlen);//MAX_PKT_SIZE);
+                   (uint8_t *)&pkt->hdr, MAX_PKT_SIZE);//pkt->pktSize
 
         //Generate random string as payload data
         /*rand_strlen = pktgen_getrandom_string64(fp_rd, rand_str, sizeof(rand_str));
