@@ -86,7 +86,7 @@
 pktgen_t pktgen;
 
 //session control
-uint8_t c_session = 0;
+uint32_t c_session = 0;
 
 /**************************************************************************//**
  *
@@ -1378,14 +1378,6 @@ pktgen_setup_cb(struct rte_mempool *mp,
             }
         }
 
-        if (c_session++ >= 2) {
-            c_session = 0;
-            pkt->ipProto = PG_IPPROTO_UDP;
-        }
-        else {
-            pkt->ipProto = PG_IPPROTO_TCP;
-        }
-
 #ifdef LOAD_CSUM
         //Format
         if ( PG_IPPROTO_TCP == pkt->ipProto ) {
@@ -1420,6 +1412,14 @@ pktgen_setup_cb(struct rte_mempool *mp,
 #else
         pktgen_packet_ctor(info, RANGE_PKT, -1);
 #endif
+
+        if (c_session++ >= 1023) {
+            c_session = 0;
+            //pkt->ipProto = PG_IPPROTO_UDP;
+        }
+        else {
+            //pkt->ipProto = PG_IPPROTO_UDP;
+        }
 
         //Put into m-buffer
         rte_memcpy((uint8_t *)m->buf_addr + m->data_off,

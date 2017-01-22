@@ -132,6 +132,7 @@ pktgen_tcp_hdr_ctor(pkt_seq_t *pkt, tcpip_t *tip, int type __rte_unused)
         tip->tcp.flags = ACK_FLAG;
         break;
     default:
+        tip->tcp.flags = PSH_FLAG|ACK_FLAG;
         break;
     }
 }
