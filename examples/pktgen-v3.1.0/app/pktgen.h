@@ -416,7 +416,7 @@ typedef struct cmdline_etheraddr cmdline_etheraddr_t;
 extern pktgen_t pktgen;
 
 extern int base64_STATIC(const u_char * xdata, int length, char *output, int buf_len);
-extern int pktgen_getrandom_string64(FILE *fp, char *buf, uint8_t buf_len);
+extern int pktgen_getrandom_string64(FILE *fp, u_char *src_rd, uint32_t rd_len,char *buf, uint32_t buf_len);
 
 extern void pktgen_page_display(struct rte_timer *tim, void *arg);
 

@@ -82,6 +82,8 @@
 #include "pktgen-log.h"
 #include "pktgen-gtpu.h"
 
+#define LOAD_RAMDOM_PL_SIZE 1024
+
 /* Allocated the pktgen structure for global use */
 pktgen_t pktgen;
 
@@ -1033,7 +1035,7 @@ int base64_STATIC(const u_char * xdata, int length, char *output, int buf_len)
     cols = 0;
 
     if (((length * 1.5) + 4) > buf_len) {
-        return 1;
+        return -1;
     }
 
     memset(output, '\0', buf_len);
@@ -1087,26 +1089,30 @@ int base64_STATIC(const u_char * xdata, int length, char *output, int buf_len)
     return (output-ost);
 }
 
-int pktgen_getrandom_string64(FILE *fp, char *buf, uint8_t buf_len)
+int pktgen_getrandom_string64(FILE *fp,
+        u_char *src_rd,
+        uint32_t rd_len,
+        char *buf,
+        uint32_t buf_len)
 {
     size_t nr;
 
-    u_char src_rd[64];
+//    u_char src_rd[LOAD_RAMDOM_PL_SIZE>>1];
 
     //fp = fopen("/dev/urandom", "r");
     if ( NULL == fp )
         return -1;
 
     //fseek(fp, 0, SEEK_SET);
-    nr = fread(src_rd, 1, sizeof(src_rd), fp);
-    if ( nr < sizeof(src_rd) ){
+    nr = fread(src_rd, 1, rd_len, fp);
+    if ( nr < rd_len ){
         printf("%s: insufficient random data\n", __func__);
         return -1;
     }
 
     //fclose(fp);
 
-    return base64_STATIC(src_rd, sizeof(src_rd), buf, buf_len);
+    return base64_STATIC(src_rd, rd_len, buf, buf_len);
 }
 
 typedef struct {
@@ -1317,6 +1323,10 @@ static uint16_t udp_cksum(uint16_t* buf,
     return cksum_add(buf, len, cksum);
 }
 
+#define LOAD_RAMDOM_IP_ADDR
+#define LOAD_RAMDOM_PAYLOAD
+#define LOAD_CSUM
+
 static __inline__ void
 pktgen_setup_cb(struct rte_mempool *mp,
         void *opaque, void *obj, unsigned obj_idx __rte_unused, FILE *fp_rd)
@@ -1326,11 +1336,16 @@ pktgen_setup_cb(struct rte_mempool *mp,
     port_info_t *info;
 	pkt_seq_t *pkt;
     uint16_t qid;
-#define LOAD_RAMDOM
-#define LOAD_CSUM
-#ifdef LOAD_RAMDOM
+#if defined(LOAD_RAMDOM_IP_ADDR) || defined(LOAD_RAMDOM_PAYLOAD)
+    uint16_t rd_len, pl_len;
     int rand_strlen = 0;
-    char rand_str[128], *prand;
+    u_char rd_src[LOAD_RAMDOM_PL_SIZE];
+    char rand_str[LOAD_RAMDOM_PL_SIZE<<1];
+#endif
+#ifdef LOAD_RAMDOM_IP_ADDR
+    char *prand;
+#endif
+#ifdef LOAD_CSUM
     Pseudoheader ph;
 #endif
     info = data->info;
@@ -1361,59 +1376,39 @@ pktgen_setup_cb(struct rte_mempool *mp,
         tcpip_t   *tip = (tcpip_t *)ether_hdr;
 		udpip_t   *udp = (udpip_t *)ether_hdr;
 #endif
-        if ( 0 == c_session ) {
-            pktgen_range_ctor(&info->range, pkt);
-            if ( NULL != fp_rd ) {
-    #ifdef LOAD_RAMDOM
-                //Generate random string as payload data
-                rand_strlen = pktgen_getrandom_string64(fp_rd, rand_str, sizeof(rand_str));
-                if ( rand_strlen > 0 ) {
-                    //rte_memcpy((uint8_t *)m->buf_addr + m->data_off + pkt->tlen,
-                     //       rand_str, rand_strlen);
-                    prand = rand_str;
-                    //pkt->ip_dst_addr.addr.ipv4.s_addr = *((uint32_t *)prand);
-                    pkt->ip_src_addr.addr.ipv4.s_addr = *((uint32_t *)prand);
-                }
-    #endif
+#if defined(LOAD_RAMDOM_IP_ADDR) || defined(LOAD_RAMDOM_PAYLOAD)
+        if ( NULL != fp_rd ) {
+            //Generate random data
+            pl_len = pkt->pktSize - pkt->ether_hdr_size - sizeof(ipHdr_t);
+            if ( pl_len <= 128 ) {
+                rd_len = 128;
             }
+            else if ( pl_len <= 256 ) {
+                rd_len = 256;
+            }
+            else if ( pl_len <= 512 ) {
+                rd_len = 512;
+            }
+            else {// if ( pl_len <= 1024 ) {
+                rd_len = 1024;
+            }
+            rand_strlen = pktgen_getrandom_string64(fp_rd, rd_src, rd_len,
+                    rand_str, sizeof(rand_str));
         }
-
-#ifdef LOAD_CSUM
-        //Format
-        if ( PG_IPPROTO_TCP == pkt->ipProto ) {
-            tip->tcp.cksum = 0;
-            pktgen_packet_ctor(info, RANGE_PKT, -1);
-        }
-        else {
-            pktgen_packet_ctor(info, RANGE_PKT, -1);
-        }
-
-        //Checksum calculation ---------------------------------------
-        ph.sip = htonl(pkt->ip_src_addr.addr.ipv4.s_addr);
-        ph.dip = htonl(pkt->ip_dst_addr.addr.ipv4.s_addr);
-        /* setup the pseudo header for checksum calculation */
-        ph.zero = 0;
-        //ph.protocol = ip4h->proto();
-        ph.len = htons((uint16_t)pkt->pktSize-14-20);
-
-        //Fill Checksum
-        if ( PG_IPPROTO_TCP == pkt->ipProto ) {
-            ph.protocol = TCP;
-            tip->tcp.cksum = 0;
-            tip->tcp.cksum = tcp_cksum((uint16_t*)(&(tip->tcp)), ntohs(ph.len), &ph);
-        }
-        else {
-            ph.protocol = UDP;
-			udp->udp.cksum = 0;
-			udp->udp.cksum = udp_cksum((uint16_t*)(&(udp->udp)), ntohs(ph.len), &ph);
-        }
-
-        //Checksum calculation End---------------------------------------
-#else
-        pktgen_packet_ctor(info, RANGE_PKT, -1);
 #endif
 
-        if (c_session++ >= 1023) {
+        if ( 0 == c_session ) {
+            pktgen_range_ctor(&info->range, pkt);
+#ifdef LOAD_RAMDOM_IP_ADDR
+            if ( rand_strlen > 0 ) {
+                prand = rand_str;
+                //pkt->ip_dst_addr.addr.ipv4.s_addr = *((uint32_t *)prand);
+                pkt->ip_src_addr.addr.ipv4.s_addr = *((uint32_t *)prand);
+            }
+#endif
+        }
+
+        if (c_session++ >= 63) {
             c_session = 0;
             //pkt->ipProto = PG_IPPROTO_UDP;
         }
@@ -1421,16 +1416,52 @@ pktgen_setup_cb(struct rte_mempool *mp,
             //pkt->ipProto = PG_IPPROTO_UDP;
         }
 
-        //Put into m-buffer
-        rte_memcpy((uint8_t *)m->buf_addr + m->data_off,
-                   (uint8_t *)&pkt->hdr, MAX_PKT_SIZE);//pkt->pktSize
+        pktgen_packet_ctor(info, RANGE_PKT, -1);
 
-        //Generate random string as payload data
-        /*rand_strlen = pktgen_getrandom_string64(fp_rd, rand_str, sizeof(rand_str));
-        if ( rand_strlen > 0 ) {
-            rte_memcpy((uint8_t *)m->buf_addr + m->data_off + pkt->tlen,
-	                    rand_str, rand_strlen);
-        }*/
+#ifdef LOAD_RAMDOM_PAYLOAD
+        //Fill Checksum
+        if ( PG_IPPROTO_TCP == pkt->ipProto ) {
+            //File TCP Payload
+            if ( rand_strlen > 0 ) {
+                pl_len = pkt->pktSize - pkt->ether_hdr_size - sizeof(ipHdr_t);
+                if ( rand_strlen > pl_len )
+                    rand_strlen = pl_len;
+                rte_memcpy((uint8_t *)(tip+1), rand_str, rand_strlen);
+            }
+        }
+        else {
+            //File UDP Payload
+        }
+#endif
+
+#ifdef LOAD_CSUM
+        //Format
+        //Checksum calculation ---------------------------------------
+        ph.sip = htonl(pkt->ip_src_addr.addr.ipv4.s_addr);
+        ph.dip = htonl(pkt->ip_dst_addr.addr.ipv4.s_addr);
+        /* setup the pseudo header for checksum calculation */
+        ph.zero = 0;
+        //ph.protocol = ip4h->proto();
+        ph.len = htons((uint16_t)pkt->pktSize-pkt->ether_hdr_size-sizeof(ipHdr_t));
+
+        //Fill Checksum
+        if ( PG_IPPROTO_TCP == pkt->ipProto ) {
+            ph.protocol = TCP;
+            tip->tcp.cksum = 0;
+            tip->tcp.cksum = tcp_cksum((uint16_t*)(&(tip->tcp)), ntohs(ph.len), &ph);
+            //tip->tcp.cksum = cksum(tip, pkt->pktSize-pkt->ether_hdr_size, 0);
+        }
+        else {
+            ph.protocol = UDP;
+			udp->udp.cksum = 0;
+			udp->udp.cksum = udp_cksum((uint16_t*)(&(udp->udp)), ntohs(ph.len), &ph);
+        }
+        //Checksum calculation End---------------------------------------
+#endif
+
+        //Payload, Put into m-buffer
+        rte_memcpy((uint8_t *)m->buf_addr + m->data_off,
+                   (uint8_t *)&pkt->hdr, pkt->pktSize);//MAX_PKT_SIZE
 
         m->pkt_len  = pkt->pktSize;
         m->data_len = pkt->pktSize;
@@ -1808,6 +1839,9 @@ pktgen_main_tx_loop(uint8_t lid)
 	tx_next_cycle   = rte_rdtsc() + infos[0]->tx_cycles;
 
 	pg_start_lcore(pktgen.l2p, lid);
+
+	for (idx = 0; idx < txcnt; idx++) /* Transmit packets */
+	    pktgen_log_info("%s: txcnt %d, qid %d\n", __func__, txcnt, qids[idx]);
 
 	idx = 0;
 	while(pg_lcore_is_running(pktgen.l2p, lid)) {
