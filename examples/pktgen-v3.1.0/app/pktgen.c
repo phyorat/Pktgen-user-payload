@@ -82,7 +82,7 @@
 #include "pktgen-log.h"
 #include "pktgen-gtpu.h"
 
-#define LOAD_RAMDOM_PL_SIZE 1024
+#define LOAD_RANDOM_PL_SIZE 1024
 
 /* Allocated the pktgen structure for global use */
 pktgen_t pktgen;
@@ -1097,7 +1097,7 @@ int pktgen_getrandom_string64(FILE *fp,
 {
     size_t nr;
 
-//    u_char src_rd[LOAD_RAMDOM_PL_SIZE>>1];
+//    u_char src_rd[LOAD_RANDOM_PL_SIZE>>1];
 
     //fp = fopen("/dev/urandom", "r");
     if ( NULL == fp )
@@ -1323,8 +1323,8 @@ static uint16_t udp_cksum(uint16_t* buf,
     return cksum_add(buf, len, cksum);
 }
 
-#define LOAD_RAMDOM_IP_ADDR
-#define LOAD_RAMDOM_PAYLOAD
+#define LOAD_RANDOM_IP_ADDR
+#define LOAD_RANDOM_PAYLOAD
 #define LOAD_CSUM
 
 static __inline__ void
@@ -1336,13 +1336,13 @@ pktgen_setup_cb(struct rte_mempool *mp,
     port_info_t *info;
 	pkt_seq_t *pkt;
     uint16_t qid;
-#if defined(LOAD_RAMDOM_IP_ADDR) || defined(LOAD_RAMDOM_PAYLOAD)
+#if defined(LOAD_RANDOM_IP_ADDR) || defined(LOAD_RANDOM_PAYLOAD)
     uint16_t rd_len, pl_len;
     int rand_strlen = 0;
-    u_char rd_src[LOAD_RAMDOM_PL_SIZE];
-    char rand_str[LOAD_RAMDOM_PL_SIZE<<1];
+    u_char rd_src[LOAD_RANDOM_PL_SIZE];
+    char rand_str[LOAD_RANDOM_PL_SIZE<<1];
 #endif
-#ifdef LOAD_RAMDOM_IP_ADDR
+#ifdef LOAD_RANDOM_IP_ADDR
     char *prand;
 #endif
 #ifdef LOAD_CSUM
@@ -1376,7 +1376,7 @@ pktgen_setup_cb(struct rte_mempool *mp,
         tcpip_t   *tip = (tcpip_t *)ether_hdr;
 		udpip_t   *udp = (udpip_t *)ether_hdr;
 #endif
-#if defined(LOAD_RAMDOM_IP_ADDR) || defined(LOAD_RAMDOM_PAYLOAD)
+#if defined(LOAD_RANDOM_IP_ADDR) || defined(LOAD_RANDOM_PAYLOAD)
         if ( NULL != fp_rd ) {
             //Generate random data
             pl_len = pkt->pktSize - pkt->ether_hdr_size - sizeof(ipHdr_t);
@@ -1399,7 +1399,7 @@ pktgen_setup_cb(struct rte_mempool *mp,
 
         if ( 0 == c_session ) {
             pktgen_range_ctor(&info->range, pkt);
-#ifdef LOAD_RAMDOM_IP_ADDR
+#ifdef LOAD_RANDOM_IP_ADDR
             if ( rand_strlen > 0 ) {
                 prand = rand_str;
                 //pkt->ip_dst_addr.addr.ipv4.s_addr = *((uint32_t *)prand);
@@ -1418,7 +1418,7 @@ pktgen_setup_cb(struct rte_mempool *mp,
 
         pktgen_packet_ctor(info, RANGE_PKT, -1);
 
-#ifdef LOAD_RAMDOM_PAYLOAD
+#ifdef LOAD_RANDOM_PAYLOAD
         //Fill Checksum
         if ( PG_IPPROTO_TCP == pkt->ipProto ) {
             //File TCP Payload
