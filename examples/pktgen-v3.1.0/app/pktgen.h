@@ -165,6 +165,8 @@
 #define PKTGEN_APP_NAME         "Pktgen"
 #define PKTGEN_CREATED_BY       "Keith Wiles"
 
+//#define PKTGEN_PFRING_FORWARD   1
+
 #define MAX_MATRIX_ENTRIES      128
 #define MAX_STRING              256
 #define Million                 (uint64_t)(1000000ULL)

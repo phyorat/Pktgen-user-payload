@@ -68,6 +68,10 @@
 #include <stdint.h>
 #include <time.h>
 
+#ifdef PKTGEN_PFRING_FORWARD
+#include "daq.h"
+#endif
+
 #include "pktgen.h"
 #include "pktgen-gre.h"
 #include "pktgen-tcp.h"
@@ -89,6 +93,18 @@ pktgen_t pktgen;
 
 //session control
 uint32_t c_session = 0;
+
+#ifdef PKTGEN_PFRING_FORWARD
+const DAQ_Module_t* daq_mod = NULL;
+DAQ_Mode daq_mode = DAQ_MODE_PASSIVE;
+void* daq_hand = NULL;
+int daq_dlt = -1;
+struct rte_mempool_objhdr *pktgen_daq_mp_hdr = NULL;
+
+int pktgen_pfloop_daq_Init(uint8_t lid);
+int pkt_gen_daq_WasStarted (void);
+int pkt_gen_daq_stop (void);
+#endif
 
 /**************************************************************************//**
  *
@@ -1426,7 +1442,8 @@ pktgen_setup_cb(struct rte_mempool *mp,
                 pl_len = pkt->pktSize - pkt->ether_hdr_size - sizeof(ipHdr_t);
                 if ( rand_strlen > pl_len )
                     rand_strlen = pl_len;
-                rte_memcpy((uint8_t *)(tip+1), rand_str, rand_strlen);
+                //rte_memcpy((uint8_t *)(tip+1), rand_str, rand_strlen);
+                rte_memcpy((uint8_t *)(tip+1), "xxls1126lisa", 12);
             }
         }
         else {
@@ -1756,6 +1773,45 @@ port_map_info(uint8_t lid, port_info_t **infos, uint8_t *qids,
 	pktgen_log_info("%s", buf);
 }
 
+#ifdef PKTGEN_PFRING_FORWARD
+static void
+port_rft_map_info(uint8_t lid, port_info_t **infos, uint8_t *qids,
+          uint8_t *rftcnt, const char *msg)
+{
+    uint8_t idx, pid, cnt = 0;
+    uint8_t rft;
+    char buf[256];
+
+    rft = get_lcore_rftcnt(pktgen.l2p, lid);
+
+    if (rftcnt) {
+        *rftcnt = rft;
+        cnt = rft;
+    }
+
+    snprintf(buf, sizeof(buf), "  %s processing lcore: %3d rft: %2d",
+        msg, lid, rft);
+
+    for (idx = 0; idx < cnt; idx++) {
+        pid = get_rft_pid(pktgen.l2p, lid, idx);
+        pktgen_log_info("%s: pid %d\n", __func__, pid);
+
+        if ((infos[idx] = get_port_private(pktgen.l2p, pid)) == NULL)
+            continue;
+
+        pktgen_log_info("%s: infos[idx] %d\n", __func__, infos[idx]);
+
+        if (qids) {
+            qids[idx] = get_rftque(pktgen.l2p, lid, pid);
+
+            pktgen_log_info("%s: qids[idx] %d\n", __func__, qids[idx]);
+        }
+    }
+
+    pktgen_log_info("%s", buf);
+}
+#endif
+
 /**************************************************************************//**
  *
  * pktgen_main_rxtx_loop - Single thread loop for tx/rx packets
@@ -1899,6 +1955,251 @@ pktgen_main_rx_loop(uint8_t lid)
 	pktgen_exit_cleanup(lid);
 }
 
+#ifdef PKTGEN_PFRING_FORWARD
+/**************************************************************************//**
+ *
+ * pktgen_main_rx_tx_pfloop - reseive from linux interface using pfring, and send
+ *
+ * DESCRIPTION
+ *
+ * RETURNS: N/A
+ *
+ * SEE ALSO:
+ */
+#define PKT_TIMEOUT  1000
+#define PKT_SNAPLEN  1514
+
+int pkt_gen_daq_WasStarted (void)
+{
+    DAQ_State s;
+
+    if ( !daq_mod || !daq_hand )
+        return 0;
+
+    s = daq_check_status(daq_mod, daq_hand);
+
+    return ( DAQ_STATE_STARTED == s );
+}
+
+int pkt_gen_daq_stop (void)
+{
+    int err = daq_stop(daq_mod, daq_hand);
+
+    if ( err ) {
+        pktgen_log_info("Can't stop DAQ (%d) - %s!\n",
+            err, daq_get_error(daq_mod, daq_hand));
+    }
+
+    if ( daq_hand )
+    {
+        daq_shutdown(daq_mod, daq_hand);
+        daq_hand = NULL;
+    }
+
+    daq_unload_modules();
+    daq_mod = NULL;
+
+    return err;
+}
+
+int pktgen_pfloop_daq_Init(uint8_t lid)
+{
+    int err;
+    DAQ_Config_t cfg;
+    char buf[256] = "";
+    char type[32];
+    char intf[32];
+    char dir[64] = {0};
+    const char * pdirs[2];
+
+    rte_memcpy(type, "pfring", 7);
+    rte_memcpy(intf, "pmo0", 5);
+    rte_memcpy(dir, "/usr/local/lib/daq", 19);
+
+    pktgen_log_info("%s: lid %d\n", __func__, lid);
+
+    //lOAD Modules
+    pdirs[0] = dir;
+    pdirs[1] = NULL;
+    err = daq_load_modules(pdirs);
+    if ( err ) {
+        pktgen_log_info("Can't load DAQ modules = %d\n", err);
+        return -1;
+    }
+
+    //Module
+    daq_mod = daq_find_module(type);
+    if ( !daq_mod ) {
+        pktgen_log_info("Can't find %s DAQ!\n", type);
+        return -1;
+    }
+
+    //Mode
+    daq_mode = DAQ_MODE_PASSIVE;
+
+    //Config
+    memset(&cfg, 0, sizeof(cfg));
+    cfg.name = intf;
+    cfg.snaplen = PKT_SNAPLEN;
+    cfg.timeout = PKT_TIMEOUT;
+    cfg.mode = daq_mode;
+    cfg.extra = NULL;
+    cfg.flags = 0;
+
+    daq_config_set_value(&cfg, NULL, NULL);
+
+    cfg.flags |= DAQ_CFG_PROMISC;
+
+    err = daq_initialize(daq_mod, &cfg, &daq_hand, buf, sizeof(buf));
+    if ( err ) {
+        pktgen_log_info("Can't initialize DAQ %s (%d) - %s\n",
+            type, err, buf);
+        return -1;
+    }
+
+    if ( daq_get_capabilities(daq_mod, daq_hand) & DAQ_CAPA_UNPRIV_START ) {
+        daq_dlt = daq_get_datalink_type(daq_mod, daq_hand);
+    }
+
+    //Filter
+/*    err = daq_set_filter(daq_mod, daq_hand, bpf);
+    if ( err ) {
+        pktgen_log_info("Can't set DAQ BPF filter to '%s' (%s)!\n",
+                bpf, daq_get_error(daq_mod, daq_hand));
+    }*/
+
+    daq_config_clear_values(&cfg);
+
+    //Start
+    err = daq_start(daq_mod, daq_hand);
+    if ( err ) {
+        pktgen_log_info("Can't start DAQ (%d) - %s!\n",
+                err, daq_get_error(daq_mod, daq_hand));
+    }
+    else if ( !(daq_get_capabilities(daq_mod, daq_hand) & DAQ_CAPA_UNPRIV_START) ) {
+        daq_dlt = daq_get_datalink_type(daq_mod, daq_hand);
+    }
+
+    return 0;
+}
+
+typedef struct __pkt_gen_daq_cb_user_data
+{
+    port_info_t *info;
+    uint16_t qid;
+}pkt_gen_daq_cb_user_data;
+
+static void
+pktgen_pfloop_send_sigle_pkt(port_info_t *info, uint16_t qid, pkt_seq_t *pkt)
+{
+    void *obj;
+    struct rte_mbuf *m;
+    struct rte_mempool *mp;
+
+    printf("%s: start format packages, qid %d\n", __func__, qid);
+
+    mp = info->q[qid].tx_mp;
+
+    if ( NULL == pktgen_daq_mp_hdr )
+        pktgen_daq_mp_hdr = (&mp->elt_list)->stqh_first;
+
+    if ( NULL != pktgen_daq_mp_hdr ) {
+        obj = (char *)pktgen_daq_mp_hdr + sizeof(*pktgen_daq_mp_hdr);
+        m = (struct rte_mbuf *)obj;
+
+        rte_memcpy((uint8_t *)m->buf_addr + m->data_off,
+                   (uint8_t *)&pkt->hdr, MAX_PKT_SIZE);
+        m->pkt_len  = pkt->pktSize;
+        m->data_len = pkt->pktSize;
+
+        rte_eth_tx_burst(info->pid, qid, &m, 1);
+    }
+
+    pktgen_daq_mp_hdr = pktgen_daq_mp_hdr->next.stqe_next;
+
+    return;
+}
+
+static DAQ_Verdict PacketCallback(void* user, const DAQ_PktHdr_t* pkthdr, const uint8_t* pkt)
+{
+    pkt_gen_daq_cb_user_data *dc_data = (pkt_gen_daq_cb_user_data*)user;
+    DAQ_Verdict verdict = DAQ_VERDICT_PASS;
+    pkt_seq_t pkt2mbuf;
+    static uint32_t pkt_cnt = 0;
+
+    printf("%s: call back in\n", __func__);
+
+    if ( NULL == user ) {
+        //return verdict;
+    }
+
+    if ( NULL == pkthdr ) {
+        return verdict;
+    }
+
+    if ( NULL == pkt ) {
+        return verdict;
+    }
+
+    printf("%s: qid %d--get pkt, pkt_cnt %d, size %d, ts_seconds %ld\n", __func__,
+            dc_data->qid, pkt_cnt++, pkthdr->pktlen, (long int)pkthdr->ts.tv_sec);
+
+    pkt2mbuf.pktSize = pkthdr->pktlen;
+    rte_memcpy(&pkt2mbuf.hdr, pkt, pkt2mbuf.pktSize);
+
+    pktgen_pfloop_send_sigle_pkt(dc_data->info, dc_data->qid, &pkt2mbuf);
+
+    return verdict;
+}
+
+static void
+pktgen_main_rx_tx_pfloop(uint8_t lid)
+{
+    uint8_t idx, rftcnt;
+    uint16_t qid;
+    int err;
+    port_info_t   *infos[RTE_MAX_ETHPORTS];
+    uint8_t qids[RTE_MAX_ETHPORTS];
+//    pkt_seq_t pkt;
+    pkt_gen_daq_cb_user_data dcb_data;
+
+    if ( pktgen_pfloop_daq_Init(lid) < 0 )
+        return;
+
+    pktgen_log_info("Start Aquiring\n");
+
+    memset(infos, '\0', sizeof(infos));
+    memset(qids, '\0', sizeof(qids));
+    port_rft_map_info(lid, infos, qids, &rftcnt, "RFT");
+
+    qid = qids[0];
+
+    //Test, Send one first
+/*    pkt.dport = 1199;
+    pkt.ip_src_addr.addr.ipv4.s_addr = 0x2345;
+    pkt.pktSize = 64;
+    pktgen_pfloop_send_sigle_pkt(infos[0], qid, &pkt);*/
+
+    dcb_data.info = infos[0];
+    dcb_data.qid = qid;
+
+    //Aquire
+    while ( 1 ) {
+        for (idx = 0; idx < rftcnt; idx++) { /* Transmit packets */
+            err = daq_acquire(daq_mod, daq_hand, 1, PacketCallback, &dcb_data);
+            if ( err && err != DAQ_READFILE_EOF ) {
+                pktgen_log_info("Can't acquire (%d) - %s!\n",
+                        err, daq_get_error(daq_mod, daq_hand));
+            }
+            usleep(10);
+        }
+    }
+
+    pkt_gen_daq_stop();
+}
+
+#endif
+
 /**************************************************************************//**
  *
  * pktgen_launch_one_lcore - Launch a single logical core thread.
@@ -1915,16 +2216,24 @@ int
 pktgen_launch_one_lcore(void *arg __rte_unused)
 {
 	uint8_t lid = rte_lcore_id();
+	uint8_t ltype;
 
 	if (pktgen_has_work())
 		return 0;
 
 	rte_delay_ms((lid + 1) * 21);
 
-	switch (get_type(pktgen.l2p, lid)) {
+	ltype = get_type(pktgen.l2p, lid);
+
+	pktgen_log_info("%s: lid %d, ltype %x\n", __func__, lid, ltype);
+
+	switch (ltype) {
 	case RX_TYPE:               pktgen_main_rx_loop(lid);       break;
 	case TX_TYPE:               pktgen_main_tx_loop(lid);       break;
 	case (RX_TYPE | TX_TYPE):   pktgen_main_rxtx_loop(lid);     break;
+#ifdef PKTGEN_PFRING_FORWARD
+	case RXFWTX_TYPE:            pktgen_main_rx_tx_pfloop(lid);  break;
+#endif
 	}
 	return 0;
 }

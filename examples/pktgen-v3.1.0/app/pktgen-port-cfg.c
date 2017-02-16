@@ -328,8 +328,8 @@ pktgen_config_ports(void)
 
 		pktgen.port_cnt++;
 		snprintf(output_buff, sizeof(output_buff),
-		         "Initialize Port %d -- TxQ %d, RxQ %d",
-		         pid, rt.tx, rt.rx);
+		         "Initialize Port %d -- TxQ %d, RxQ %d, RFT %d",
+		         pid, rt.tx, rt.rx, rt.rft);
 
 		info = get_port_private(pktgen.l2p, pid);
 
@@ -362,10 +362,10 @@ pktgen_config_ports(void)
 
 		pktgen_port_conf_setup(pid, &rt, &default_port_conf);
 
-		if ( (ret = rte_eth_dev_configure(pid, rt.rx, rt.tx, &info->port_conf)) < 0)
+		if ( (ret = rte_eth_dev_configure(pid, rt.rx, rt.tx+rt.rft, &info->port_conf)) < 0)
 			pktgen_log_panic(
 			        "Cannot configure device: port=%d, Num queues %d,%d (%d)%s",
-			        pid, rt.rx, rt.tx, errno, rte_strerror(-ret));
+			        pid, rt.rx, rt.tx+rt.rft, errno, rte_strerror(-ret));
 
 		pkt = &info->seq_pkt[SINGLE_PKT];
 
@@ -407,9 +407,11 @@ pktgen_config_ports(void)
 		}
 		pktgen_log_info("");
 
-		for (q = 0; q < rt.tx; q++) {
+		for (q = 0; q < (rt.tx+rt.rft); q++) {
 			/* grab the socket id value based on the lcore being used. */
-			sid = rte_lcore_to_socket_id(get_port_lid(pktgen.  l2p, pid, q));
+			lid = get_port_lid(pktgen.  l2p, pid, q);
+			sid = rte_lcore_to_socket_id(lid);
+			pktgen_log_info("%s: lid %d, sid %d\n", __func__, lid, sid);
 
 			/* Create and initialize the default Transmit buffers. */
 			info->q[q].tx_mp = pktgen_mbuf_pool_create( "Default TX", pid, q,
@@ -419,7 +421,7 @@ pktgen_config_ports(void)
 
 			/* Create and initialize the range Transmit buffers. */
 			info->q[q].range_mp = pktgen_mbuf_pool_create( "Range TX", pid, q,
-			        0x2DC6C0/*0xF4240*//*MAX_MBUFS_PER_PORT*/, sid, 0);
+			        /*0x1E8480*//*0x2DC6C0*//*0xF4240*/0x927C0/*MAX_MBUFS_PER_PORT*/, sid, 0);
 			if (info->q[q].range_mp == NULL)
 				pktgen_log_panic("Cannot init port %d for Range TX mbufs", pid);
 

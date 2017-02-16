@@ -44,14 +44,16 @@
 #define MAX_MAP_PORTS           (RTE_MAX_ETHPORTS + 1)
 #define MAX_MAP_LCORES          (RTE_MAX_LCORE + 1)
 
-enum { NO_TYPE = 0, RX_TYPE = 0x01, TX_TYPE = 0x02 };
+enum { NO_TYPE = 0, RX_TYPE = 0x01, TX_TYPE = 0x02, RXFWTX_TYPE = 0x04 };
 
 typedef struct pq_s {
 	uint8_t rx_cnt;
 	uint8_t tx_cnt;
-	uint8_t pad0[2];
+	uint8_t rft_cnt;
+	uint8_t pad0[1];
 	uint16_t rx[RTE_MAX_ETHPORTS];
 	uint16_t tx[RTE_MAX_ETHPORTS];
+	uint16_t rft[RTE_MAX_ETHPORTS];
 } pq_t;
 
 typedef struct {
@@ -67,6 +69,7 @@ typedef struct {
 	uint8_t pid;
 	uint8_t rx_qid;
 	uint8_t tx_qid;
+	uint8_t rft_qid;
 	uint8_t nb_lids;
 	uint8_t lids[RTE_MAX_LCORE];
 	void      *private;
@@ -76,8 +79,10 @@ typedef union {
 	struct {
 		uint8_t rx;
 		uint8_t tx;
+		uint8_t rft;
+		uint8_t pad0[1];
 	};
-	uint16_t rxtx;
+	uint32_t rxtx;
 } rxtx_t;
 
 typedef struct {
@@ -202,6 +207,18 @@ pg_new_txque(l2p_t *l2p, uint8_t pid)
 }
 
 /**************************************************************************//**
+ * Get a new rft queue value
+ *
+ */
+static __inline__ uint8_t
+pg_new_rftque(l2p_t *l2p, uint8_t pid)
+{
+    pobj_t    *pobj = &l2p->ports[pid];
+
+    return pobj->rft_qid++;
+}
+
+/**************************************************************************//**
  * Increase the number of RX ports.
  *
  */
@@ -220,10 +237,19 @@ pg_inc_tx(l2p_t *l2p, uint8_t pid, uint8_t lid) {
 }
 
 /**************************************************************************//**
+ * Increase the number of RFT ports
+ *
+ */
+static __inline__ void
+pg_inc_rft(l2p_t *l2p, uint8_t pid, uint8_t lid) {
+    l2p->map[pid][lid].rft++;
+}
+
+/**************************************************************************//**
  * return the rxtx_t value at given lcore/port index
  *
  */
-static __inline__ uint16_t
+static __inline__ uint32_t
 get_map(l2p_t *l2p, uint8_t pid, uint8_t lid)
 {
 	return l2p->map[pid][lid].rxtx;
@@ -254,6 +280,15 @@ l2p_connect(l2p_t *l2p,  uint8_t pid, uint8_t lid, uint32_t type)
 		lobj->qids.tx_cnt++;
 		pg_inc_tx(l2p, pid, lid);
 	}
+
+	if (type & RXFWTX_TYPE) {
+	    lobj->pids.rft[lobj->pids.rft_cnt++]  = pid;
+	    lobj->qids.rft[pid]  = pg_new_txque(l2p, pid);//pg_new_rftque(l2p, pid);   /* Allocate a RFT qid */
+	    printf("%s: rft_cnt %d, qid %d\n", __func__, lobj->pids.rft_cnt, lobj->qids.rft[pid]);
+	    lobj->qids.rft_cnt++;
+	    pg_inc_rft(l2p, pid, lid);
+	}
+
 	pobj->lids[pobj->nb_lids++] = lid;
 }
 
@@ -291,6 +326,18 @@ get_lcore_txcnt(l2p_t *l2p, uint8_t lid)
 	lobj_t    *lobj = &l2p->lcores[lid];
 
 	return lobj->pids.tx_cnt;
+}
+
+/**************************************************************************//**
+ * Grab the cnt value from the given lcore id.
+ *
+ */
+static __inline__ uint8_t
+get_lcore_rftcnt(l2p_t *l2p, uint8_t lid)
+{
+    lobj_t    *lobj = &l2p->lcores[lid];
+
+    return lobj->pids.rft_cnt;
 }
 
 /**************************************************************************//**
@@ -390,6 +437,18 @@ get_rx_pid(l2p_t *l2p, uint8_t lid, uint8_t idx)
 }
 
 /**************************************************************************//**
+ * Get RFT pid
+ *
+ */
+static __inline__ uint8_t
+get_rft_pid(l2p_t *l2p, uint8_t lid, uint8_t idx)
+{
+    lobj_t    *lobj = &l2p->lcores[lid];
+
+    return lobj->pids.rft[idx];
+}
+
+/**************************************************************************//**
  * Get TX pid
  *
  */
@@ -435,6 +494,18 @@ get_txque(l2p_t *l2p, uint8_t lid, uint8_t pid)
 	lobj_t    *lobj = &l2p->lcores[lid];
 
 	return lobj->qids.tx[pid];
+}
+
+/**************************************************************************//**
+ * Get the number of rft qids
+ *
+ */
+static __inline__ uint16_t
+get_rftque(l2p_t *l2p, uint8_t lid, uint8_t pid)
+{
+    lobj_t    *lobj = &l2p->lcores[lid];
+
+    return lobj->qids.rft[pid];
 }
 
 /**************************************************************************//**

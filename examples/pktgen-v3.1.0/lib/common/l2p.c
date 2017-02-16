@@ -91,7 +91,7 @@
 
 #define countof(t)      (sizeof(t) / sizeof(t[0]))
 
-enum { RX_IDX = 0, TX_IDX = 1, RXTX_CNT = 2 };
+enum { RX_IDX = 0, TX_IDX = 1, RFT_IDX = 2, RXTX_CNT = 3 }; //RFT, RX and forward
 
 /* Make sure to force sizes to multiples of 8 */
 typedef struct ls_s {
@@ -206,7 +206,7 @@ pg_parse_lcore_list(char *list, ls_t *ls)
 
 	/* Split up the string based on the ':' for Rx:Tx pairs */
 	k = pg_strparse(list, ":", arr, countof(arr) );
-	if ( (k == 0) || (k == 3) ) {
+	if ( (k == 0) || (k == 4) ) {
 		fprintf(stderr, "*** Invalid string (%s)\n", list);
 		return 1;
 	}
@@ -214,12 +214,23 @@ pg_parse_lcore_list(char *list, ls_t *ls)
 	if (k == 1) {							/* Must be a lcore/port number only */
 		pg_parse_rt_list(arr[0], ls[RX_IDX].ls);		/* Parse the list with no ':' character */
 		memcpy(ls[TX_IDX].ls, ls[RX_IDX].ls, sizeof(ls_t));	/* Update the tx bitmap too. */
-	} else {							/* k == 2 */						/*
-									 * Must be a <rx-list>:<tx-list> pair */
+	}
+	else if (k == 2) {						/* k == 2 */                                            /*
+                                                                        * Must be a <rx-list>:<tx-list> pair */
 		if (pg_parse_rt_list(arr[0], ls[RX_IDX].ls) )		/* parse <rx-list> */
 			return 1;
 
 		if (pg_parse_rt_list(arr[1], ls[TX_IDX].ls) )	/* parse <tx-list> */
+			return 1;
+	}
+	else {									/* k == 3 */
+		if (pg_parse_rt_list(arr[0], ls[RX_IDX].ls) )		/* parse <rx-list> */
+			return 1;
+
+		if (pg_parse_rt_list(arr[1], ls[TX_IDX].ls) )	/* parse <tx-list> */
+			return 1;
+
+		if (pg_parse_rt_list(arr[2], ls[RFT_IDX].ls) )   /* parse <rft-list> */
 			return 1;
 	}
 	return 0;
@@ -245,7 +256,7 @@ pg_parse_port_list(char *list, ps_t *ps)
 
 	/* Split up the string based on the ':' for Rx:Tx pairs */
 	k = pg_strparse(list, ":", arr, countof(arr) );
-	if ( (k == 0) || (k == 3) ) {
+	if ( (k == 0) || (k == 4) ) {
 		fprintf(stderr, "*** Invalid string (%s)\n", list);
 		return 1;
 	}
@@ -253,12 +264,23 @@ pg_parse_port_list(char *list, ps_t *ps)
 	if (k == 1) {							/* Must be a lcore/port number only */
 		pg_parse_rt_list(arr[0], ps[RX_IDX].ps);		/* Parse the list with no ':' character */
 		memcpy(ps[TX_IDX].ps, ps[RX_IDX].ps, sizeof(ps_t));	/* Update the tx bitmap too. */
-	} else {							/* k == 2 */						/*
+	}
+	else if ( k == 2 ) {			/* k == 2 */						/*
 									 * Must be a <rx-list>:<tx-list> pair */
 		if (pg_parse_rt_list(arr[0], ps[RX_IDX].ps) )		/* parse <rx-list> */
 			return 1;
 
 		if (pg_parse_rt_list(arr[1], ps[TX_IDX].ps) )	/* parse <tx-list> */
+			return 1;
+	}
+	else {                            /* k == 3 */
+		if (pg_parse_rt_list(arr[0], ps[RX_IDX].ps) )       /* parse <rx-list> */
+			return 1;
+
+		if (pg_parse_rt_list(arr[1], ps[TX_IDX].ps) )   /* parse <tx-list> */
+			return 1;
+
+		if (pg_parse_rt_list(arr[2], ps[RFT_IDX].ps) )   /* parse <rft-list> */
 			return 1;
 	}
 	return 0;
@@ -402,6 +424,8 @@ pg_parse_matrix(l2p_t *l2p, char *str)
 				lid_type |= RX_TYPE;
 			if (_btst(lp.lcores[TX_IDX].ls, lid) )
 				lid_type |= TX_TYPE;
+			if (_btst(lp.lcores[RFT_IDX].ls, lid) )
+				lid_type |= RXFWTX_TYPE;
 			if (lid_type == 0)
 				continue;
 
@@ -411,6 +435,8 @@ pg_parse_matrix(l2p_t *l2p, char *str)
 					pid_type |= RX_TYPE;
 				if (_btst(lp.ports[TX_IDX].ps, pid) )
 					pid_type |= TX_TYPE;
+				if (_btst(lp.ports[RFT_IDX].ps, pid) )
+					pid_type |= RXFWTX_TYPE;
 				if (pid_type == 0)
 					continue;
 				l2p_connect(l2p, pid, lid, lid_type);
@@ -426,6 +452,8 @@ pg_parse_matrix(l2p_t *l2p, char *str)
 					n.tx++;
 				if (cnt.rx > 0)
 					n.rx++;
+				if (cnt.rft > 0)
+					n.rft++;
 			}
 		l2p->map[pid][lid].rxtx = n.rxtx;	/* Update the lcores per port */
 	}
@@ -437,6 +465,8 @@ pg_parse_matrix(l2p_t *l2p, char *str)
 					n.tx++;
 				if (cnt.rx > 0)
 					n.rx++;
+				if (cnt.rft > 0)
+					n.rft++;
 			}
 		l2p->map[pid][lid].rxtx = n.rxtx;	/* Update the ports per lcore */
 	}
