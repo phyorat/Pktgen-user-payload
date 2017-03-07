@@ -68,10 +68,6 @@
 #include <stdint.h>
 #include <time.h>
 
-#ifdef PKTGEN_PFRING_FORWARD
-#include "daq.h"
-#endif
-
 #include "pktgen.h"
 #include "pktgen-gre.h"
 #include "pktgen-tcp.h"
@@ -85,6 +81,10 @@
 #include "pktgen-random.h"
 #include "pktgen-log.h"
 #include "pktgen-gtpu.h"
+
+#ifdef PKTGEN_PFRING_FORWARD
+#include "daq.h"
+#endif
 
 #define LOAD_RANDOM_PL_SIZE 1024
 
@@ -1442,8 +1442,8 @@ pktgen_setup_cb(struct rte_mempool *mp,
                 pl_len = pkt->pktSize - pkt->ether_hdr_size - sizeof(ipHdr_t);
                 if ( rand_strlen > pl_len )
                     rand_strlen = pl_len;
-                //rte_memcpy((uint8_t *)(tip+1), rand_str, rand_strlen);
-                rte_memcpy((uint8_t *)(tip+1), "xxls1126lisa", 12);
+                rte_memcpy((uint8_t *)(tip+1), rand_str, rand_strlen);
+                //rte_memcpy((uint8_t *)(tip+1), "xxls1126lisa", 12);
             }
         }
         else {
@@ -2013,7 +2013,7 @@ int pktgen_pfloop_daq_Init(uint8_t lid)
     const char * pdirs[2];
 
     rte_memcpy(type, "pfring", 7);
-    rte_memcpy(intf, "pmo0", 5);
+    rte_memcpy(intf, "pmo2", 5);
     rte_memcpy(dir, "/usr/local/lib/daq", 19);
 
     pktgen_log_info("%s: lid %d\n", __func__, lid);
@@ -2090,13 +2090,16 @@ typedef struct __pkt_gen_daq_cb_user_data
 }pkt_gen_daq_cb_user_data;
 
 static void
-pktgen_pfloop_send_sigle_pkt(port_info_t *info, uint16_t qid, pkt_seq_t *pkt)
+pktgen_pfloop_send_sigle_pkt(port_info_t *info,
+		uint16_t qid,
+		const DAQ_PktHdr_t* pkthdr,
+		const uint8_t* pkt)//pkt_seq_t *pkt)
 {
     void *obj;
     struct rte_mbuf *m;
     struct rte_mempool *mp;
 
-    printf("%s: start format packages, qid %d\n", __func__, qid);
+    //printf("%s: start format packages, qid %d\n", __func__, qid);
 
     mp = info->q[qid].tx_mp;
 
@@ -2108,9 +2111,9 @@ pktgen_pfloop_send_sigle_pkt(port_info_t *info, uint16_t qid, pkt_seq_t *pkt)
         m = (struct rte_mbuf *)obj;
 
         rte_memcpy((uint8_t *)m->buf_addr + m->data_off,
-                   (uint8_t *)&pkt->hdr, MAX_PKT_SIZE);
-        m->pkt_len  = pkt->pktSize;
-        m->data_len = pkt->pktSize;
+                   (const uint8_t *)pkt/*&pkt->hdr*/, MAX_PKT_SIZE);
+        m->pkt_len  = pkthdr->pktlen;//pkt->pktSize;
+        m->data_len = pkthdr->pktlen;//pkt->pktSize;
 
         rte_eth_tx_burst(info->pid, qid, &m, 1);
     }
@@ -2124,10 +2127,10 @@ static DAQ_Verdict PacketCallback(void* user, const DAQ_PktHdr_t* pkthdr, const 
 {
     pkt_gen_daq_cb_user_data *dc_data = (pkt_gen_daq_cb_user_data*)user;
     DAQ_Verdict verdict = DAQ_VERDICT_PASS;
-    pkt_seq_t pkt2mbuf;
+    //pkt_seq_t pkt2mbuf;
     static uint32_t pkt_cnt = 0;
 
-    printf("%s: call back in\n", __func__);
+    //printf("%s: call back in\n", __func__);
 
     if ( NULL == user ) {
         //return verdict;
@@ -2144,10 +2147,10 @@ static DAQ_Verdict PacketCallback(void* user, const DAQ_PktHdr_t* pkthdr, const 
     printf("%s: qid %d--get pkt, pkt_cnt %d, size %d, ts_seconds %ld\n", __func__,
             dc_data->qid, pkt_cnt++, pkthdr->pktlen, (long int)pkthdr->ts.tv_sec);
 
-    pkt2mbuf.pktSize = pkthdr->pktlen;
-    rte_memcpy(&pkt2mbuf.hdr, pkt, pkt2mbuf.pktSize);
+    //pkt2mbuf.pktSize = pkthdr->pktlen;
+    //rte_memcpy(&pkt2mbuf.hdr, pkt, pkt2mbuf.pktSize);
 
-    pktgen_pfloop_send_sigle_pkt(dc_data->info, dc_data->qid, &pkt2mbuf);
+    pktgen_pfloop_send_sigle_pkt(dc_data->info, dc_data->qid, pkthdr, pkt);//&pkt2mbuf);
 
     return verdict;
 }

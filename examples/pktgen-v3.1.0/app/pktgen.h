@@ -547,6 +547,8 @@ do_command(const char *cmd, int (*display)(char *, int)) {
 	return i;
 }
 
+#define PKTGEN_PFRING_FORWARD	1
+
 #ifndef MEMPOOL_F_DMA
 #define MEMPOOL_F_DMA       0
 #endif
