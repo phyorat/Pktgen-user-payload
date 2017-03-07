@@ -2128,7 +2128,7 @@ static DAQ_Verdict PacketCallback(void* user, const DAQ_PktHdr_t* pkthdr, const 
     pkt_gen_daq_cb_user_data *dc_data = (pkt_gen_daq_cb_user_data*)user;
     DAQ_Verdict verdict = DAQ_VERDICT_PASS;
     //pkt_seq_t pkt2mbuf;
-    static uint32_t pkt_cnt = 0;
+    //static uint32_t pkt_cnt = 0;
 
     //printf("%s: call back in\n", __func__);
 
@@ -2144,8 +2144,8 @@ static DAQ_Verdict PacketCallback(void* user, const DAQ_PktHdr_t* pkthdr, const 
         return verdict;
     }
 
-    printf("%s: qid %d--get pkt, pkt_cnt %d, size %d, ts_seconds %ld\n", __func__,
-            dc_data->qid, pkt_cnt++, pkthdr->pktlen, (long int)pkthdr->ts.tv_sec);
+    /*printf("%s: qid %d--get pkt, pkt_cnt %d, size %d, ts_seconds %ld\n", __func__,
+            dc_data->qid, pkt_cnt++, pkthdr->pktlen, (long int)pkthdr->ts.tv_sec);*/
 
     //pkt2mbuf.pktSize = pkthdr->pktlen;
     //rte_memcpy(&pkt2mbuf.hdr, pkt, pkt2mbuf.pktSize);
@@ -2186,8 +2186,10 @@ pktgen_main_rx_tx_pfloop(uint8_t lid)
     dcb_data.info = infos[0];
     dcb_data.qid = qid;
 
+    pg_start_lcore(pktgen.l2p, lid);
+
     //Aquire
-    while ( 1 ) {
+    while ( pg_lcore_is_running(pktgen.l2p, lid) ) {
         for (idx = 0; idx < rftcnt; idx++) { /* Transmit packets */
             err = daq_acquire(daq_mod, daq_hand, 1, PacketCallback, &dcb_data);
             if ( err && err != DAQ_READFILE_EOF ) {
