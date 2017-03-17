@@ -1,0 +1,9 @@
+Make Steps:
+
+$ aclocal
+$ autoconf
+$ autoheader
+$ automake -a
+$ ./configure --with-dpdk-includes=$RTE_SDK/$RTE_TARGET/include --with-dpdk-libraries=$RTE_SDK/$RTE_TARGET/lib
+$ make && sudo make install
+
