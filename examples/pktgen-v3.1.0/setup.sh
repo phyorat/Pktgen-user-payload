@@ -33,7 +33,7 @@ function num_cpu_sockets {
     fi
 }
 
-sudo rm -fr /mnt/huge/*
+#sudo rm -fr /mnt/huge/*
 
 NR_HUGEPAGES=$(( `sysctl -n vm.nr_hugepages` / $(num_cpu_sockets) ))
 echo "Setup "$(num_cpu_sockets)" socket(s) with "$NR_HUGEPAGES" pages."

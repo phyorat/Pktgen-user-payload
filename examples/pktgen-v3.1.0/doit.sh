@@ -99,7 +99,7 @@ fi
 
 if [ "$1 " == "si " ]; then
   #./app/build/pktgen -c ff -n 1 --proc-type auto --file-prefix pg -- -T -P -m "1.0, [2:4].1" 
-  ./app/app/x86_64-native-linuxapp-gcc/pktgen -c ff -n 1 --proc-type auto --file-prefix pg -- -T -P -m "[1:2].0"
+  ./app/app/x86_64-native-linuxapp-gcc/pktgen -c ff -n 1 --proc-type auto --file-prefix pg -- -T -P -m "[0:1/2].0"
   #gdb ./app/app/x86_64-native-linuxapp-gcc/pktgen
 
 

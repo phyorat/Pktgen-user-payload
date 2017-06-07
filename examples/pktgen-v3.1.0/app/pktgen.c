@@ -1424,15 +1424,15 @@ pktgen_setup_cb(struct rte_mempool *mp,
 #endif
         }
 
-        if (c_session++ >= 63) {
+        pktgen_packet_ctor(info, RANGE_PKT, -1);
+
+        if (c_session++ >= (MAX_SESSION_PKTCNT-1)) {
             c_session = 0;
             //pkt->ipProto = PG_IPPROTO_UDP;
         }
         else {
             //pkt->ipProto = PG_IPPROTO_UDP;
         }
-
-        pktgen_packet_ctor(info, RANGE_PKT, -1);
 
 #ifdef LOAD_RANDOM_PAYLOAD
         //Fill Checksum
@@ -2095,11 +2095,17 @@ pktgen_pfloop_send_sigle_pkt(port_info_t *info,
 		const DAQ_PktHdr_t* pkthdr,
 		const uint8_t* pkt)//pkt_seq_t *pkt)
 {
+    uint32_t plen;
     void *obj;
     struct rte_mbuf *m;
     struct rte_mempool *mp;
 
     //printf("%s: start format packages, qid %d\n", __func__, qid);
+
+    if ( pkthdr->pktlen > MAX_PKT_SIZE )
+        plen = 64;
+    else
+        plen = pkthdr->pktlen;
 
     mp = info->q[qid].tx_mp;
 
@@ -2112,8 +2118,8 @@ pktgen_pfloop_send_sigle_pkt(port_info_t *info,
 
         rte_memcpy((uint8_t *)m->buf_addr + m->data_off,
                    (const uint8_t *)pkt/*&pkt->hdr*/, MAX_PKT_SIZE);
-        m->pkt_len  = pkthdr->pktlen;//pkt->pktSize;
-        m->data_len = pkthdr->pktlen;//pkt->pktSize;
+        m->pkt_len  = plen;//pkthdr->pktlen;//pkt->pktSize;
+        m->data_len = plen;//pkthdr->pktlen;//pkt->pktSize;
 
         rte_eth_tx_burst(info->pid, qid, &m, 1);
     }

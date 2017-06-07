@@ -171,6 +171,12 @@
 #define MAX_STRING              256
 #define Million                 (uint64_t)(1000000ULL)
 
+#define MAX_SESSION_PKTCNT		(0x100)
+#define MAX_SESSION_LAST_1		(MAX_SESSION_PKTCNT-1)
+#define MAX_SESSION_LAST_2		(MAX_SESSION_PKTCNT-2)
+#define MAX_SESSION_LAST_3		(MAX_SESSION_PKTCNT-3)
+#define MAX_SESSION_LAST_4		(MAX_SESSION_PKTCNT-4)
+
 #define iBitsTotal(_x) \
 	(uint64_t)(((_x.ipackets * (INTER_FRAME_GAP + PKT_PREAMBLE_SIZE + FCS_SIZE)) + _x.ibytes) * 8)
 #define oBitsTotal(_x) \
