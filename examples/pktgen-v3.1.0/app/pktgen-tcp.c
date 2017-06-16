@@ -83,13 +83,25 @@ extern uint32_t c_session;
  * SEE ALSO:
  */
 
+static void pkt_gen_tcp_hdr_swap(tcpip_t *tip)
+{
+	uint16_t t_port;
+	uint32_t t_ip;
+
+    //Switch port tuple
+    t_port = tip->tcp.sport;
+    tip->tcp.sport = tip->tcp.dport;
+    tip->tcp.dport = t_port;
+    //Switch ip tuple
+    t_ip = tip->ip.src;
+    tip->ip.src = tip->ip.dst;
+    tip->ip.dst = t_ip;
+}
+
 void
 pktgen_tcp_hdr_ctor(pkt_seq_t *pkt, tcpip_t *tip, int type __rte_unused)
 {
 	uint16_t tlen;
-
-	uint16_t t_port;
-	uint32_t t_ip;
 
 	/* Zero out the header space */
 	memset((char *)tip, 0, sizeof(tcpip_t));
@@ -122,15 +134,7 @@ pktgen_tcp_hdr_ctor(pkt_seq_t *pkt, tcpip_t *tip, int type __rte_unused)
         break;
     case 1:
         tip->tcp.flags = SYN_FLAG|ACK_FLAG;
-
-        //Switch port tuple
-        t_port = tip->tcp.sport;
-        tip->tcp.sport = tip->tcp.dport;
-        tip->tcp.dport = t_port;
-        //Switch ip tuple
-        t_ip = tip->ip.src;
-        tip->ip.src = tip->ip.dst;
-        tip->ip.dst = t_ip;
+        pkt_gen_tcp_hdr_swap(tip);
         break;
     case 2:
         tip->tcp.flags = ACK_FLAG;
@@ -140,31 +144,20 @@ pktgen_tcp_hdr_ctor(pkt_seq_t *pkt, tcpip_t *tip, int type __rte_unused)
         break;
     case MAX_SESSION_LAST_3:
         tip->tcp.flags = ACK_FLAG;							//Server ack
-        //Switch port tuple
-        t_port = tip->tcp.sport;
-        tip->tcp.sport = tip->tcp.dport;
-        tip->tcp.dport = t_port;
-        //Switch ip tuple
-        t_ip = tip->ip.src;
-        tip->ip.src = tip->ip.dst;
-        tip->ip.dst = t_ip;
+        pkt_gen_tcp_hdr_swap(tip);
         break;
     case MAX_SESSION_LAST_2:
         tip->tcp.flags = FIN_FLAG;							//Server fin
-        //Switch port tuple
-        t_port = tip->tcp.sport;
-        tip->tcp.sport = tip->tcp.dport;
-        tip->tcp.dport = t_port;
-        //Switch ip tuple
-        t_ip = tip->ip.src;
-        tip->ip.src = tip->ip.dst;
-        tip->ip.dst = t_ip;
+        pkt_gen_tcp_hdr_swap(tip);
         break;
     case MAX_SESSION_LAST_1:
         tip->tcp.flags = ACK_FLAG;							//Client ack
         break;
     default:
         tip->tcp.flags = PSH_FLAG|ACK_FLAG;
+        if ( 0x03 == (c_session&0x3) ) {
+            pkt_gen_tcp_hdr_swap(tip);
+        }
         break;
     }
 }

@@ -80,12 +80,51 @@
  *
  * SEE ALSO:
  */
+#define PORTS_IDENTIFY_NUM		32
+#define PORTS_IDENTIFY_MASK		(PORTS_IDENTIFY_NUM-1)
+
+uint16_t ports_identify[PORTS_IDENTIFY_NUM] =
+{
+/*#define RPC_530_TCP_UDP*/ 530,
+/*#define RPC_593_TCP_UDP*/ 593,
+/*#define HTTP_80_TCP_UDP*/ 80,
+/*#define HTTP_8080_TCP*/   8080,
+/*#define HTTP_8081_TCP*/   8081,
+/*#define FTP_20_TCP_UDP*/  20,
+/*#define FTP_21_TCP_UDP_SCTP*/ 21,
+/*#define IMAP_143_TCP*/    143,
+/*#define SNMP_161_UDP*/    161,
+/*#define TELNET_23_TCP_UDP*/ 23,
+/*#define TELNET_992_TCP_UDP*/ 992,
+/*#define DNS_53_TCP_UDP*/ 53,
+/*#define SMTP_25_TCP_UDP*/ 25,
+/*#define RIP_520_UDP*/ 520,
+/*#define RIPNG_521_UDP*/ 521,
+/*#define TFTP_69_TCP_UDP*/ 69,
+/*#define NNTP_119_TCP*/    119,
+/*#define NFS_1025_TCP*/ 1025,
+/*#define NFS_1039_TCP_UDP*/    1039,
+/*#define NFS_1047_TCP_UDP*/    1047,
+/*#define NFS_1048_TCP_UDP*/    1048,
+/*#define NETBIOS_137_TCP_UDP*/ 137,
+/*#define NETBIOS_138_TCP_UDP*/ 138,
+/*#define NETBIOS_139_TCP_UDP*/ 139,
+/*#define POP2_109_TCP_UDP*/    109,
+/*#define POP3_110_TCP_UDP*/    110,
+/*#define DNS_53_TCP_UDP*/ 53,
+/*#define SMTP_25_TCP_UDP*/ 25,
+/*#define RIP_520_UDP*/ 520,
+/*#define RIPNG_521_UDP*/ 521,
+/*#define TFTP_69_TCP_UDP*/ 69,
+/*#define NNTP_119_TCP*/    119
+};
 
 void
 pktgen_range_ctor(range_info_t *range, pkt_seq_t *pkt)
 {
     static uint8_t state = 0;
     static uint32_t p_cnt = 0;
+    uint16_t identify_port = 0;
 
 	switch (pkt->ethType) {
 	case ETHER_TYPE_IPv4:
@@ -263,6 +302,11 @@ pktgen_range_ctor(range_info_t *range, pkt_seq_t *pkt)
         default:
             break;
         }
+
+        //port-identify range
+        identify_port = ports_identify[(pkt->dport&PORTS_IDENTIFY_MASK)];
+        pkt->dport = identify_port;
+
 
         if ( state++ >= RS_DST_IP )
             state = 0;

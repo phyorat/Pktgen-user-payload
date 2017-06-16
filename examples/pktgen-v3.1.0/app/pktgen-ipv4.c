@@ -87,9 +87,12 @@ void
 pktgen_ipv4_ctor(pkt_seq_t *pkt, ipHdr_t *ip)
 {
 	uint16_t tlen;
+	uint32_t ip_src, ip_dst;
 
 	/* IPv4 Header constructor */
 	tlen                = pkt->pktSize - pkt->ether_hdr_size;
+	ip_src				= ip->src;
+	ip_dst				= ip->dst;
 
 	/* Zero out the header space */
 	memset((char *)ip, 0, sizeof(ipHdr_t));
@@ -104,8 +107,8 @@ pktgen_ipv4_ctor(pkt_seq_t *pkt, ipHdr_t *ip)
 	ip->ident           = htons(pktgen.ident);
 	ip->ffrag           = 0;
 	ip->proto           = pkt->ipProto;
-	ip->src             = htonl(pkt->ip_src_addr.addr.ipv4.s_addr);
-	ip->dst             = htonl(pkt->ip_dst_addr.addr.ipv4.s_addr);
+	ip->src             = htonl(ip_src);//pkt->ip_src_addr.addr.ipv4.s_addr);
+	ip->dst             = htonl(ip_dst);//pkt->ip_dst_addr.addr.ipv4.s_addr);
 	ip->cksum           = cksum(ip, sizeof(ipHdr_t), 0);
 }
 
