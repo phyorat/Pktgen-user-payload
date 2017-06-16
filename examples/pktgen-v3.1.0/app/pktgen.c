@@ -1454,8 +1454,8 @@ pktgen_setup_cb(struct rte_mempool *mp,
 #ifdef LOAD_CSUM
         //Format
         //Checksum calculation ---------------------------------------
-        ph.sip = htonl(pkt->ip_src_addr.addr.ipv4.s_addr);
-        ph.dip = htonl(pkt->ip_dst_addr.addr.ipv4.s_addr);
+        ph.sip = pkt->hdr.u.ipv4.src;
+        ph.dip = pkt->hdr.u.ipv4.dst;
         /* setup the pseudo header for checksum calculation */
         ph.zero = 0;
         //ph.protocol = ip4h->proto();
@@ -2102,8 +2102,8 @@ pktgen_pfloop_send_sigle_pkt(port_info_t *info,
 
     //printf("%s: start format packages, qid %d\n", __func__, qid);
 
-    if ( pkthdr->pktlen > MAX_PKT_SIZE )
-        plen = 64;
+    if ( pkthdr->pktlen > (MAX_PKT_SIZE-34) )
+        plen = MAX_PKT_SIZE-34;
     else
         plen = pkthdr->pktlen;
 
@@ -2117,7 +2117,7 @@ pktgen_pfloop_send_sigle_pkt(port_info_t *info,
         m = (struct rte_mbuf *)obj;
 
         rte_memcpy((uint8_t *)m->buf_addr + m->data_off,
-                   (const uint8_t *)pkt/*&pkt->hdr*/, MAX_PKT_SIZE);
+                   (const uint8_t *)pkt/*&pkt->hdr*/, plen);
         m->pkt_len  = plen;//pkthdr->pktlen;//pkt->pktSize;
         m->data_len = plen;//pkthdr->pktlen;//pkt->pktSize;
 
