@@ -73,14 +73,14 @@ dst.mac min 0 00:1b:21:00:00:00
 dst.mac max 0 00:1b:21:ff:ff:ff
 dst.mac inc 0 00:00:00:00:00:00
 
-src.ip start 0 192.168.2.1
-src.ip min 0 192.168.2.1
-src.ip max 0 192.168.2.255
+src.ip start 0 12.18.2.1
+src.ip min 0 12.18.2.1
+src.ip max 0 12.18.2.255
 src.ip inc 0 0.0.0.1
 
-dst.ip start 0 10.247.13.1
-dst.ip min 0 10.247.13.1
-dst.ip max 0 10.247.13.255
+dst.ip start 0 192.168.2.1
+dst.ip min 0 192.168.2.1
+dst.ip max 0 192.168.2.255
 dst.ip inc 0 0.0.0.1
 
 src.port start 0 1
