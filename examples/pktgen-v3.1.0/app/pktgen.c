@@ -2013,7 +2013,7 @@ int pktgen_pfloop_daq_Init(uint8_t lid)
     const char * pdirs[2];
 
     rte_memcpy(type, "pfring", 7);
-    rte_memcpy(intf, "pmo2", 5);
+    rte_memcpy(intf, "pmo0", 5);
     rte_memcpy(dir, "/usr/local/lib/daq", 19);
 
     pktgen_log_info("%s: lid %d\n", __func__, lid);
@@ -2102,15 +2102,20 @@ pktgen_pfloop_send_sigle_pkt(port_info_t *info,
 
     //printf("%s: start format packages, qid %d\n", __func__, qid);
 
-    if ( pkthdr->pktlen > (MAX_PKT_SIZE-34) )
+/*    if ( pkthdr->pktlen > (MAX_PKT_SIZE-34) )
         plen = MAX_PKT_SIZE-34;
     else
-        plen = pkthdr->pktlen;
+        plen = pkthdr->pktlen;*/
+    plen = pkthdr->caplen;
 
     mp = info->q[qid].tx_mp;
 
     if ( NULL == pktgen_daq_mp_hdr )
         pktgen_daq_mp_hdr = (&mp->elt_list)->stqh_first;
+
+    /*printf("%s: pktgen_daq_mp_hdr %lx, pkt %lx, plen %u(%u, %u)\n", __func__,
+            (unsigned long)pktgen_daq_mp_hdr, (unsigned long)pkt,
+            plen, pkthdr->pktlen, pkthdr->caplen);*/
 
     if ( NULL != pktgen_daq_mp_hdr ) {
         obj = (char *)pktgen_daq_mp_hdr + sizeof(*pktgen_daq_mp_hdr);

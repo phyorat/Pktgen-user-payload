@@ -159,14 +159,14 @@ dst.mac min 1 00:1b:21:00:00:00
 dst.mac max 1 00:1b:21:ff:ff:ff
 dst.mac inc 1 00:00:00:00:00:00
 
-src.ip start 1 192.168.2.1
-src.ip min 1 192.168.2.1
-src.ip max 1 192.168.2.255
+src.ip start 1 12.18.2.1
+src.ip min 1 12.18.2.1
+src.ip max 1 12.18.2.255
 src.ip inc 1 0.0.0.1
 
-dst.ip start 1 10.247.13.1
-dst.ip min 1 10.247.13.1
-dst.ip max 1 10.247.13.255
+dst.ip start 1 192.168.2.1
+dst.ip min 1 192.168.2.1
+dst.ip max 1 192.168.2.255
 dst.ip inc 1 0.0.0.1
 
 src.port start 1 1
@@ -246,14 +246,14 @@ dst.mac min 2 00:1b:21:00:00:00
 dst.mac max 2 00:1b:21:ff:ff:ff
 dst.mac inc 2 00:00:00:00:00:00
 
-src.ip start 2 192.168.2.1
-src.ip min 2 192.168.2.1
-src.ip max 2 192.168.2.255
+src.ip start 2 10.16.7.1
+src.ip min 2 10.16.7.1
+src.ip max 2 83.16.9.255
 src.ip inc 2 0.0.0.1
 
-dst.ip start 2 10.247.13.1
-dst.ip min 2 10.247.13.1
-dst.ip max 2 10.247.13.255
+dst.ip start 2 192.168.2.1
+dst.ip min 2 192.168.2.1
+dst.ip max 2 192.168.2.255
 dst.ip inc 2 0.0.0.1
 
 src.port start 2 1
@@ -279,6 +279,93 @@ pkt.size inc 2 0
 #
 # Set up the sequence data for the port.
 set 2 seqCnt 0
+
+
+######################### Port  3 ##################################
+#
+# Port:  0, Burst: 32, Rate:100%, Flags:00000010, TX Count:Forever
+#           SeqCnt:0, Prime:3 VLAN ID:0001, Link: <UP-1000-FD>
+#
+# Set up the primary port information:
+set 3 count 3000000
+set 3 size 64
+set 3 rate 100
+set 3 burst 32
+set 3 sport 1234
+set 3 dport 5678
+set 3 prime 3
+type ipv4 3
+proto tcp 3
+set ip dst 3 10.247.13.1
+set ip src 3 192.168.2.0/24
+#set mac 3 00:1b:21:c8:1b:f1
+set mac 3 c8:1f:66:db:cb:d8
+vlanid 3 1
+
+mpls 3 disable
+mpls_entry 3 0
+qinq 3 disable
+qinqids 3 0 0
+gre 3 disable
+gre_eth 3 disable
+gre_key 3 0
+#
+# Port flag values:
+icmp.echo 3 disable
+pcap 3 disable
+range 3 enable
+process 3 disable
+capture 3 disable
+rxtap 3 disable
+txtap 3 disable
+vlan 3 disable
+
+#
+# Range packet information:
+src.mac start 3 00:1b:21:c8:1b:f1
+src.mac min 3 00:1b:20:00:00:00
+src.mac max 3 00:1b:20:ff:ff:ff
+src.mac inc 3 00:00:00:00:00:00
+#dst.mac start 3 00:1b:21:c9:1b:f1
+#dst.mac start 3 00:1b:21:94:4f:4a
+dst.mac start 3 c8:1f:66:db:cb:d8
+dst.mac min 3 00:1b:21:00:00:00
+dst.mac max 3 00:1b:21:ff:ff:ff
+dst.mac inc 3 00:00:00:00:00:00
+
+src.ip start 3 192.168.2.1
+src.ip min 3 192.168.2.1
+src.ip max 3 192.168.2.255
+src.ip inc 3 0.0.0.1
+
+dst.ip start 3 10.247.13.1
+dst.ip min 3 10.247.13.1
+dst.ip max 3 10.247.13.255
+dst.ip inc 3 0.0.0.1
+
+src.port start 3 1
+src.port min 3 1
+src.port max 3 65535
+src.port inc 3 8
+
+dst.port start 3 1
+dst.port min 3 1
+dst.port max 3 65535
+dst.port inc 3 8
+
+vlan.id start 3 1
+vlan.id min 3 1
+vlan.id max 3 4095
+vlan.id inc 3 0
+
+pkt.size start 3 64
+pkt.size min 3 64
+pkt.size max 3 64
+pkt.size inc 3 0
+
+#
+# Set up the sequence data for the port.
+set 3 seqCnt 0
 
 
 
