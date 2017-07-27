@@ -91,6 +91,7 @@ ifeq ($(GUI),true)
 endif
 
 LDFLAGS += -g -lpcap $(RPATHS) $(MYLIB_PATH) $(MYLIBS) $(GTK_LIB) -lm
+#LDFLAGS += -g -lpcap $(RPATHS) $(MYLIB_PATH) $(MYLIBS) $(GTK_LIB) -lm -ldaq
 
 DEPDIRS-y += ../lib/common ../lib/lua
 
