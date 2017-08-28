@@ -80,15 +80,20 @@
  *
  * SEE ALSO:
  */
+#ifdef DNS_HTTP_TEST
+#define PORTS_IDENTIFY_NUM		2
+#else
 #define PORTS_IDENTIFY_NUM		32
+#endif
 #define PORTS_IDENTIFY_MASK		(PORTS_IDENTIFY_NUM-1)
 
 uint16_t ports_identify[PORTS_IDENTIFY_NUM] =
 {
-/*#define RPC_530_TCP_UDP*/ 530,
-/*#define RPC_593_TCP_UDP*/ 593,
 /*#define HTTP_80_TCP_UDP*/ 80,
 /*#define HTTP_8080_TCP*/   8080,
+#ifndef DNS_HTTP_TEST
+/*#define RPC_530_TCP_UDP*/ 530,
+/*#define RPC_593_TCP_UDP*/ 593,
 /*#define HTTP_8081_TCP*/   8081,
 /*#define FTP_20_TCP_UDP*/  20,
 /*#define FTP_21_TCP_UDP_SCTP*/ 21,
@@ -117,6 +122,7 @@ uint16_t ports_identify[PORTS_IDENTIFY_NUM] =
 /*#define RIPNG_521_UDP*/ 521,
 /*#define TFTP_69_TCP_UDP*/ 69,
 /*#define NNTP_119_TCP*/    119
+#endif
 };
 
 void
@@ -132,6 +138,9 @@ pktgen_range_ctor(range_info_t *range, pkt_seq_t *pkt)
 		case PG_IPPROTO_TCP:
 		case PG_IPPROTO_UDP:
             if ( 0 == p_cnt++ ){//p_cnt++ > 1000) {
+#ifdef RANGE_FIXED_MAC_ADDR
+                uint8_t spec_mac[6] = {0x18, 0x66, 0xda, 0xe9, 0x37, 0x95};
+#endif
                 pkt->gtpu_teid = range->gtpu_teid;
                 pkt->sport = range->src_port;
                 pkt->dport = range->dst_port;
@@ -144,7 +153,11 @@ pktgen_range_ctor(range_info_t *range, pkt_seq_t *pkt)
                 pkt->pktSize = range->pkt_size;
 
                 inet_h64tom(range->src_mac, &pkt->eth_src_addr);
+#ifdef RANGE_FIXED_MAC_ADDR
+                memcpy(&pkt->eth_dst_addr, spec_mac, sizeof(spec_mac));
+#else
                 inet_h64tom(range->dst_mac, &pkt->eth_dst_addr);
+#endif
 
                 printf("%s: state %d, range->src_port_inc %d, min %d, max %d, cur %d, p_cnt %d\n",
                     __func__, state, range->src_port_inc, range->src_port_min, range->src_port_max, pkt->sport, p_cnt);

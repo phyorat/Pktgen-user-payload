@@ -177,7 +177,7 @@
 #define MAX_SESSION_LAST_3		(MAX_SESSION_PKTCNT-3)
 #define MAX_SESSION_LAST_4		(MAX_SESSION_PKTCNT-4)
 
-#define RANGE_MBUF_POOL_SIZE	(0x10000)///*0x1E8480*//*0x2DC6C0*//*0xF4240*/0x927C0/*MAX_MBUFS_PER_PORT*/
+#define RANGE_MBUF_POOL_SIZE	(0x80000)///*0x1E8480*//*0x2DC6C0*//*0xF4240*/0x927C0/*MAX_MBUFS_PER_PORT*/
 
 #define iBitsTotal(_x) \
 	(uint64_t)(((_x.ipackets * (INTER_FRAME_GAP + PKT_PREAMBLE_SIZE + FCS_SIZE)) + _x.ibytes) * 8)
@@ -555,7 +555,22 @@ do_command(const char *cmd, int (*display)(char *, int)) {
 	return i;
 }
 
-//#define PKTGEN_PFRING_FORWARD	1
+typedef struct _EtherHdr
+{
+    uint8_t ether_dst[6];
+    uint8_t ether_src[6];
+    uint16_t ether_type;
+
+} EtherHdr;
+
+#define PKTGEN_PFRING_FORWARD	1
+
+#define LOAD_RANDOM_IP_ADDR
+#define LOAD_RANDOM_PAYLOAD
+#define LOAD_CSUM
+//#define DNS_HTTP_TEST
+//#define RANGE_FIXED_MAC_ADDR
+
 
 #ifndef MEMPOOL_F_DMA
 #define MEMPOOL_F_DMA       0
