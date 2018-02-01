@@ -90,8 +90,10 @@ ifeq ($(GUI),true)
 	DEPDIRS-y += ../gui
 endif
 
-#LDFLAGS += -g -lpcap $(RPATHS) $(MYLIB_PATH) $(MYLIBS) $(GTK_LIB) -lm
+CFLAGS += -I/usr/local/include_daq_206
+MYLIB_PATH += -L/usr/local/lib_daq_206
 LDFLAGS += -g -lpcap $(RPATHS) $(MYLIB_PATH) $(MYLIBS) $(GTK_LIB) -lm -ldaq
+#LDFLAGS += -g -lpcap $(RPATHS) $(MYLIB_PATH) $(MYLIBS) $(GTK_LIB) -lm
 
 DEPDIRS-y += ../lib/common ../lib/lua
 

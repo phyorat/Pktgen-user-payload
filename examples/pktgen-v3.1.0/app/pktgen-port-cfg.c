@@ -276,6 +276,7 @@ pktgen_config_ports(void)
 	int32_t ret, cache_size;
 	char output_buff[256] = { 0 };
 	uint64_t ticks;
+	uint64_t tx_mbuflen;
 
 	/* Find out the total number of ports in the system. */
 	/* We have already blacklisted the ones we needed to in main routine. */
@@ -420,8 +421,12 @@ pktgen_config_ports(void)
 				pktgen_log_panic("Cannot init port %d for Default TX mbufs", pid);
 
 			/* Create and initialize the range Transmit buffers. */
+			if ( q < rt.tx )
+				tx_mbuflen = RANGE_MBUF_POOL_SIZE;
+			else
+				tx_mbuflen = 4096;
 			info->q[q].range_mp = pktgen_mbuf_pool_create( "Range TX", pid, q,
-					RANGE_MBUF_POOL_SIZE, sid, 0);
+					tx_mbuflen, sid, 0);
 			if (info->q[q].range_mp == NULL)
 				pktgen_log_panic("Cannot init port %d for Range TX mbufs", pid);
 

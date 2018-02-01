@@ -2180,6 +2180,7 @@ pktgen_pfloop_send_sigle_pkt(port_info_t *info,
     struct rte_mempool *mp;
     EtherHdr *eh;
     uint8_t spec_mac[6] = {0x18, 0x66, 0xda, 0xe9, 0x37, 0x95};
+    //uint8_t spec_mac[6] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 
     //printf("%s: start format packages, qid %d\n", __func__, qid);
 
@@ -2292,7 +2293,7 @@ pktgen_main_rx_tx_pfloop(uint8_t lid)
                 pktgen_log_info("Can't acquire (%d) - %s!\n",
                         err, daq_get_error(daq_mod, daq_hand));
             }
-            usleep(10);
+            //usleep(10);
         }
     }
 
