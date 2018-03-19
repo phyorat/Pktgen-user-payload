@@ -1495,6 +1495,10 @@ pktgen_setup_cb(struct rte_mempool *mp,
         //Checksum calculation End---------------------------------------
 #endif
 
+#ifdef RANGE_MAC_ADDR_BROADCAST
+		memset(&eth->d_addr, 0xff, sizeof(eth->d_addr));
+#endif
+
 #ifdef DNS_HTTP_TEST
         {
         	uint8_t dns_w_req[] = {
@@ -2179,8 +2183,8 @@ pktgen_pfloop_send_sigle_pkt(port_info_t *info,
     struct rte_mbuf *m;
     struct rte_mempool *mp;
     EtherHdr *eh;
-    uint8_t spec_mac[6] = {0x18, 0x66, 0xda, 0xe9, 0x37, 0x95};
-    //uint8_t spec_mac[6] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
+    //uint8_t spec_mac[6] = {0x18, 0x66, 0xda, 0xe9, 0x37, 0x95};
+    uint8_t spec_mac[6] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 
     //printf("%s: start format packages, qid %d\n", __func__, qid);
 
